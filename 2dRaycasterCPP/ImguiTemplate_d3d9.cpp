@@ -49,17 +49,17 @@ float crossProduct(const ImVec2& a, const ImVec2& b) {
     return a.x * b.y - a.y * b.x;
 }
 
-void linesAddCircle(ImVec2 origin, float radius, int sides) {
+void linesAddCircle(ImVec2 origin, float radius, int sides, ImColor colour) {
 	float angle = pi * 2.f / (float)sides;
 
 	ImVec2* points = new ImVec2[sides + 1];
     
     for (int i = 0; i < sides; i++) {
         points[i] = ImVec2(origin.x + (cos((angle * i)) * radius), origin.y + (sin((angle * i)) * radius));
-        lines.push_back({ points[i - 1], points[i], ImColor(255, 100, 100)});
+        lines.push_back({ points[i - 1], points[i], colour});
     } 
 
-    lines.push_back({ points[0], points[sides - 1], ImColor(255, 100, 100)});
+    lines.push_back({ points[0], points[sides - 1], colour});
 
     delete[] points;
 }
@@ -74,7 +74,7 @@ bool intersect(line* a, line* b, ImVec2* out) {
     ImVec2 qMinusP = ImVec2{ q.x - p.x, q.y - p.y };
 
     // Check if the lines are parallel or coincident
-    if (std::abs(rCrossS) <= std::numeric_limits<float>::epsilon()) {
+    if (std::abs(crossProduct(qMinusP, r)) <= std::numeric_limits<float>::epsilon() && std::abs(crossProduct(qMinusP, s)) <= std::numeric_limits<float>::epsilon()) {
         // Check if the lines are collinear and overlapping
         if (crossProduct(qMinusP, r) <= std::numeric_limits<float>::epsilon()) {
             float t0 = (qMinusP.x * r.x + qMinusP.y * r.y) / (r.x * r.x + r.y * r.y);
@@ -83,7 +83,7 @@ bool intersect(line* a, line* b, ImVec2* out) {
             float tMin = min(t0, t1);
             float tMax = max(t0, t1);
 
-            if (tMax >= 0 && tMin <= 1) {
+            if (tMax >= 0.f && tMin <= 1.f) {
                 out->x = p.x + tMin * r.x;
                 out->y = p.y + tMin * r.y;
                 return true;
@@ -237,8 +237,15 @@ int main()
         }
 
         if (!linesInit) {
-            linesAddCircle({ winSize.x / 2, winSize.y / 2 }, 100.f, 20);
 
+            for (int i = 0; i < 12; i++) {
+				float x1 = rand() % (int)winSize.x;
+				float y1 = rand() % (int)winSize.y;
+                float size = (rand() % 75) + 25;
+				ImColor randColour = ImColor(rand() % 255, rand() % 255, rand() % 255);
+                linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
+            }
+            
             ImVec2 TL = { 5, 5 };
             ImVec2 TR = { winSize.x - 6,  5 };
             ImVec2 BL = { 5,  winSize.y - 6 };
@@ -263,7 +270,7 @@ int main()
             float FOV = (pi / 2.f) / 2.f;
             float angleStep = FOV / cameraRayCount;
 			float offsetAngle = (playerAngle - (FOV / 2.f)) + (angleStep * (float)i);
-
+            
             hitInfo hinf = {};
             
             if (castRay(player, offsetAngle, rayMaxDistance, &hinf)) { }
@@ -295,8 +302,6 @@ int main()
 			ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
 			ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-            printf_s("R: %f, G: %i, B: %i\n", colour.Value.w, colour.Value.x, colour.Value.y);
-            
 			draw->AddRectFilled(barMin, barMax, ImColor(colour.Value.x * (1.f - percentageOfMaxDistance), colour.Value.y * (1.f - percentageOfMaxDistance), colour.Value.z * (1.f - percentageOfMaxDistance)));
 		}
         
