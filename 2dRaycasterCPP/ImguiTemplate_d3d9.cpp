@@ -145,9 +145,9 @@ int main()
 {
     srand(time(NULL));
     
-    WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("TEMPLATE"), NULL };
+    WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("2D Raycaster"), NULL };
     ::RegisterClassEx(&wc);
-    HWND hwnd = ::CreateWindow(wc.lpszClassName, _T("TEMPLATE"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 720, NULL, NULL, wc.hInstance, NULL);
+    HWND hwnd = ::CreateWindow(wc.lpszClassName, _T("2D Raycaster"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 720, NULL, NULL, wc.hInstance, NULL);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
@@ -224,8 +224,7 @@ int main()
         ImGui::NewFrame();
         ImGui::SetNextWindowPos({ 0, 0 });
         ImGui::SetNextWindowSize(whole_content_size);
-        ImGui::Begin("ImguiTemplate", 0, flags);
-        ImGui::Text("ImGui template - d3d9");
+        ImGui::Begin("ImGui", 0, flags);
 
         //
         // GUI DRAW CODE HERE
