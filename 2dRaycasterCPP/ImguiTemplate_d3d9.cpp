@@ -117,7 +117,11 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf) {
 	for (line& line : lines) {
         ImVec2 hit = { -1, -1 };
 		if (intersect(&ray, &line, &hit)) {
+            
 			float distanceToHit = sqrt(pow(origin.x - hit.x, 2) + pow(origin.y - hit.y, 2));
+            float mA = playerAngle - angle;
+			distanceToHit *= cos(mA);
+            
             if (distanceToHit < distanceToClosestHit) {
                 distanceToClosestHit = distanceToHit;
                 closestHit = { hit.x, hit.y };
@@ -290,6 +294,22 @@ int main()
 		float rendererBarWidth = _width / (float)cameraRayCount;
 		draw->AddRectFilled(rendererMin, rendererMax, ImColor(0, 0, 0));
         
+        bool floor = true;
+        if (floor) {
+            int floorSegments = 25;
+            float floorSegmentHeight = (_height / 2.f) / floorSegments;
+            int floorBrightnessMax = 255 / 3;
+            int floorBrightnessMin = 25;
+            int floorBrightnessStep = (floorBrightnessMax - floorBrightnessMin) / floorSegments;
+
+            for (int i = 0; i < floorSegments; i++) {
+                ImVec2 floorMin = { rendererMin.x, rendererCenterLeft.y + (floorSegmentHeight * (float)i) };
+                ImVec2 floorMax = { rendererMax.x, rendererCenterLeft.y + (floorSegmentHeight * (float)(i + 1)) };
+                ImColor segmentColour = ImColor((floorBrightnessStep * (i)), (floorBrightnessStep * (i)), (floorBrightnessStep * (i)));
+                draw->AddRectFilled(floorMin, floorMax, segmentColour);
+            }
+        }
+              
         for (int i = 0; i < cameraRayCount; i++){
 			float distance = distances[i].distance;
             ImColor colour = distances[i].colour;
@@ -302,7 +322,16 @@ int main()
 			ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
 			ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-			draw->AddRectFilled(barMin, barMax, ImColor(colour.Value.x * (1.f - percentageOfMaxDistance), colour.Value.y * (1.f - percentageOfMaxDistance), colour.Value.z * (1.f - percentageOfMaxDistance)));
+            float brightness = (2.5f / (distance * distance)) * 7500.f;
+			float newR = colour.Value.x * brightness;
+			float newG = colour.Value.y * brightness;
+			float newB = colour.Value.z * brightness;
+            //if (newR > colour.Value.x) { newR = colour.Value.x; }
+			//if (newG > colour.Value.y) { newG = colour.Value.y; }
+			//if (newB > colour.Value.z) { newB = colour.Value.z; }
+            
+          
+			draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB));
 		}
         
         draw->AddRect(rendererMin, rendererMax, 0xffffffff);
