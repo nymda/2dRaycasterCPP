@@ -30,12 +30,16 @@ struct line {
     ImVec2 p1;
     ImVec2 p2;
     ImColor colour = ImColor(255, 255, 255);
+    bool reflective = false;
+    bool ignorePrimaryRays = false;
 };
 
 struct hitInfo {
     ImVec2 position = { -1, -1 };
     float distance = -1.f;
+    float distanceToReflective = -1.f;
     ImColor colour = ImColor(0, 0, 0);
+    bool applyReflectiveModifier = false;
 };
 
 std::vector<line> lines;
@@ -45,21 +49,62 @@ bool playerInit = false;
 bool linesInit = false;
 ImDrawList* draw = 0;
 
+ImVec2 normalise(ImVec2 vector) {
+	float l = sqrt(vector.x * vector.x + vector.y * vector.y);
+    return { vector.x / l, vector.y / l };
+}
+
+ImVec2 angleToVector(float angle) {
+    return { cos(angle), sin(angle) };
+}
+
+ImVec2 vectorToPoint(ImVec2 source, ImVec2 target) {
+	ImVec2 v = { target.x - source.x, target.y - source.y };
+	return normalise(v);
+}
+
+float angleToPoint(ImVec2 source, ImVec2 target) {
+	ImVec2 v = vectorToPoint(source, target);
+	return atan2(v.y, v.x);
+}
+
 float crossProduct(const ImVec2& a, const ImVec2& b) {
     return a.x * b.y - a.y * b.x;
 }
 
-void linesAddCircle(ImVec2 origin, float radius, int sides, ImColor colour) {
+ImVec2 lineCenter(line l) {
+	return { l.p1.x + (l.p2.x - l.p1.x) / 2.f, l.p1.y + (l.p2.y - l.p1.y) / 2.f }; 
+}
+
+float distance(ImVec2 p1, ImVec2 p2) {
+	return sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2)); 
+}
+
+float calculateNormalAngle(line l) {
+    ImVec2 normal = ImVec2{ l.p2.x - l.p1.x, l.p2.y - l.p1.y };
+    float angle = atan2(normal.y, normal.x);
+    angle += pi / 2.f;
+    if (angle < 0) angle += pi * 2.f;
+    return angle;
+}
+
+float calculateReflectionAngle(line l, float incomingAngle) {
+    float normalAngle = calculateNormalAngle(l);
+    float angle = normalAngle - (incomingAngle - normalAngle);
+    return angle;
+}
+
+void linesAddCircle(ImVec2 origin, float radius, int sides, ImColor colour, bool reflective = false) {
 	float angle = pi * 2.f / (float)sides;
 
 	ImVec2* points = new ImVec2[sides + 1];
     
     for (int i = 0; i < sides; i++) {
         points[i] = ImVec2(origin.x + (cos((angle * i)) * radius), origin.y + (sin((angle * i)) * radius));
-        lines.push_back({ points[i - 1], points[i], colour});
+        lines.push_back({ points[i - 1], points[i], colour, reflective });
     } 
 
-    lines.push_back({ points[0], points[sides - 1], colour});
+    lines.push_back({ points[0], points[sides - 1], colour, reflective });
 
     delete[] points;
 }
@@ -83,7 +128,7 @@ bool intersect(line* a, line* b, ImVec2* out) {
             float tMin = min(t0, t1);
             float tMax = max(t0, t1);
 
-            if (tMax >= 0.f && tMin <= 1.f) {
+            if (tMax >= 0.f && tMin <= 1.f) {                
                 out->x = p.x + tMin * r.x;
                 out->y = p.y + tMin * r.y;
                 return true;
@@ -105,7 +150,7 @@ bool intersect(line* a, line* b, ImVec2* out) {
     return false;
 }
 
-bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf) {
+bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, bool reflection = false, float reflectionAddedDistance = 0.f) {
 	ImVec2 target = ImVec2(origin.x + (cos(angle) * maxDistance), origin.y + (sin(angle) * maxDistance));
 
 	line ray = { origin, target };
@@ -113,19 +158,28 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf) {
     ImVec2 closestHit = target;
 	float distanceToClosestHit = maxDistance;
     ImColor closestHitColour = ImColor(0, 0, 0);
+    bool isReflective = false;
+    line* hitLine = 0;
     
 	for (line& line : lines) {
         ImVec2 hit = { -1, -1 };
 		if (intersect(&ray, &line, &hit)) {
             
+            if (!reflection && line.ignorePrimaryRays) { continue; }
+
 			float distanceToHit = sqrt(pow(origin.x - hit.x, 2) + pow(origin.y - hit.y, 2));
-            float mA = playerAngle - angle;
-			distanceToHit *= cos(mA);
+
+            if (!reflection) {
+                float mA = playerAngle - angle;
+                distanceToHit *= cos(mA);
+            }
             
-            if (distanceToHit < distanceToClosestHit) {
+            if (distanceToHit < distanceToClosestHit && distanceToHit > 0.01f) {
                 distanceToClosestHit = distanceToHit;
                 closestHit = { hit.x, hit.y };
                 closestHitColour = line.colour;
+                isReflective = line.reflective;
+				hitLine = &line;
             }
 		}
 	}
@@ -133,16 +187,29 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf) {
     hitInf->position = closestHit;
     hitInf->distance = distanceToClosestHit;
     hitInf->colour = closestHitColour;
+    hitInf->applyReflectiveModifier = false;
+
+	draw->AddLine(origin, closestHit, ImColor(255, 255, 255));
+    
+    if (isReflective && maxDistance > 0.f && hitLine != 0 && !reflection) {
+        hitInf->distanceToReflective = distanceToClosestHit;
+		return castRay(closestHit, calculateReflectionAngle(*hitLine, (angle - pi)), maxDistance - distanceToClosestHit, hitInf, true, distanceToClosestHit);
+    }
     
 	if (distanceToClosestHit < maxDistance) {
+        hitInf->distance += reflectionAddedDistance;
+        if (reflection) {
+            hitInf->applyReflectiveModifier = true;
+        }
 		return true;
 	}
+
+    if (reflection) {
+        hitInf->distance = maxDistance + reflectionAddedDistance;
+        hitInf->applyReflectiveModifier = true;
+    }
     
 	return false; 
-}
-
-ImVec2 angleToVector(float angle) {
-    return { cos(angle), sin(angle) };
 }
 
 int main()
@@ -179,7 +246,7 @@ int main()
     draw = ImGui::GetForegroundDrawList();
     int cameraRayCount = 128;
     hitInfo* distances = new hitInfo[cameraRayCount] {};
-    float rayMaxDistance = 750.f;
+    float rayMaxDistance = 1000.f;
     
     MSG msg;
     ZeroMemory(&msg, sizeof(msg));
@@ -201,14 +268,14 @@ int main()
         
         if (GetKeyState(VK_UP) < 0) {
             ImVec2 forward = angleToVector(playerAngle);
-            player.x += forward.x * 1.0f;
-            player.y += forward.y * 1.0f;
+            player.x += forward.x * 0.75f;
+            player.y += forward.y * 0.75f;
         }
 
         if (GetKeyState(VK_DOWN) < 0) {
             ImVec2 forward = angleToVector(playerAngle);
-            player.x -= forward.x * 1.0f;
-            player.y -= forward.y * 1.0f;
+            player.x -= forward.x * 0.75f;
+            player.y -= forward.y * 0.75f;
         }
         
         if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
@@ -242,7 +309,7 @@ int main()
 
         if (!linesInit) {
 
-            for (int i = 0; i < 12; i++) {
+            for (int i = 0; i < 8; i++) {
 				float x1 = rand() % (int)winSize.x;
 				float y1 = rand() % (int)winSize.y;
                 float size = (rand() % 75) + 25;
@@ -250,12 +317,14 @@ int main()
                 linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
             }
             
+            linesAddCircle({ winSize.x / 1.5f, winSize.y / 1.5f }, 25.f, 128, ImColor(100, 100, 100), true);
+            
             ImVec2 TL = { 5, 5 };
             ImVec2 TR = { winSize.x - 6,  5 };
             ImVec2 BL = { 5,  winSize.y - 6 };
             ImVec2 BR = { winSize.x - 6,  winSize.y - 6 };
 
-            lines.push_back({ TL, TR, ImColor(200, 200, 255) });
+            lines.push_back({ TL, TR, ImColor(200, 200, 255), true });
             lines.push_back({ TR, BR, ImColor(200, 200, 255) });
             lines.push_back({ BR, BL, ImColor(200, 200, 255) });
             lines.push_back({ BL, TL, ImColor(200, 200, 255) });
@@ -265,13 +334,20 @@ int main()
         
         for (line& cLine : lines) {
             draw->AddLine(cLine.p1, cLine.p2, 0xffffffff);
+
+            float normalAngle = calculateNormalAngle(cLine);
+			ImVec2 normal = angleToVector(normalAngle);
+			ImVec2 center = lineCenter(cLine);
+            ImVec2 normalStart = { center.x + (normal.x * -10.f), center.y + (normal.y * -10.f) };
+			ImVec2 normalEnd = { center.x + (normal.x * 10.f), center.y + (normal.y * 10.f) };
+            draw->AddLine(normalStart, normalEnd, ImColor(0, 255, 0));
         }
         
 		draw->AddCircleFilled(player, 5, 0xffffffff);        
 
         for (int i = 0; i < cameraRayCount; i++) {
 
-            float FOV = (pi / 2.f) / 2.f;
+            float FOV = (pi / 2.f) / 1.75f;
             float angleStep = FOV / cameraRayCount;
 			float offsetAngle = (playerAngle - (FOV / 2.f)) + (angleStep * (float)i);
             
@@ -279,14 +355,13 @@ int main()
             
             if (castRay(player, offsetAngle, rayMaxDistance, &hinf)) { }
 			distances[i] = hinf;
-            draw->AddLine(player, hinf.position, 0xffffffff);
-        }
-        
+            //draw->AddLine(player, hinf.position, 0xffffffff);
+        }     
 
         //draw 3d environment
         
-        float _width = 300;
-        float _height = 250;
+        float _width = 640 / 2;
+        float _height = 480 / 2;
         
         ImVec2 rendererMin = { 15, 15 };
         ImVec2 rendererMax = { 15 + _width, 15 + _height };
@@ -307,13 +382,42 @@ int main()
                 ImVec2 floorMax = { rendererMax.x, rendererCenterLeft.y + (floorSegmentHeight * (float)(i + 1)) };
                 ImColor segmentColour = ImColor((floorBrightnessStep * (i)), (floorBrightnessStep * (i)), (floorBrightnessStep * (i)));
                 draw->AddRectFilled(floorMin, floorMax, segmentColour);
+				draw->AddRectFilled({ floorMin.x, rendererCenterLeft.y - (floorSegmentHeight * (float)(i + 1)) }, { floorMax.x, rendererCenterLeft.y - (floorSegmentHeight * (float)(i)) }, segmentColour);
             }
         }
-              
+
         for (int i = 0; i < cameraRayCount; i++){
 			float distance = distances[i].distance;
-            ImColor colour = distances[i].colour;
+            float stackedDistance = distances[i].distanceToReflective;
 
+            if (distances[i].applyReflectiveModifier) {
+                ImColor colour = ImColor(100, 110, 100);
+
+                float percentageOfMaxDistance = stackedDistance / rayMaxDistance;
+
+                float height = (1.f - percentageOfMaxDistance) * _height;
+                if (height < 0.f) { height = 0.f; }
+
+                ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
+                ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
+
+                float brightness = (2.5f / (stackedDistance * stackedDistance)) * 7500.f;
+
+                if (brightness > 0.25f) {
+                    brightness = 0.25f;
+                }
+
+                float newR = colour.Value.x * brightness;
+                float newG = colour.Value.y * brightness;
+                float newB = colour.Value.z * brightness;
+
+                draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB));
+            }
+
+
+            ImColor colour = distances[i].colour;
+            bool applyReflectionColouring = distances[i].applyReflectiveModifier;
+            
 			float percentageOfMaxDistance = distance / rayMaxDistance;
 
 			float height = (1.f - percentageOfMaxDistance) * _height;
@@ -323,13 +427,10 @@ int main()
 			ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
             float brightness = (2.5f / (distance * distance)) * 7500.f;
+
 			float newR = colour.Value.x * brightness;
 			float newG = colour.Value.y * brightness;
-			float newB = colour.Value.z * brightness;
-            //if (newR > colour.Value.x) { newR = colour.Value.x; }
-			//if (newG > colour.Value.y) { newG = colour.Value.y; }
-			//if (newB > colour.Value.z) { newB = colour.Value.z; }
-            
+			float newB = colour.Value.z * brightness; 
           
 			draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB));
 		}
