@@ -270,6 +270,48 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, boo
 	return false; 
 }
 
+//fires 60 times per second
+void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
+    if (GetKeyState(VK_LEFT) < 0) {
+        playerAngle -= (pi / 2.f) / 50;
+        if (playerAngle < 0.f) {
+            playerAngle += (pi * 2.f);
+        }
+    }
+
+    if (GetKeyState(VK_RIGHT) < 0) {
+        playerAngle += (pi / 2.f) / 50;
+        if (playerAngle > (pi * 2.f)) {
+            playerAngle -= (pi * 2.f);
+        }
+    }
+
+    if (GetKeyState(VK_UP) < 0) {
+        ImVec2 forward = angleToVector(playerAngle);
+        player.x += forward.x * 3.f;
+        player.y += forward.y * 3.f;
+    }
+
+    if (GetKeyState(VK_DOWN) < 0) {
+        ImVec2 forward = angleToVector(playerAngle);
+        player.x -= forward.x * 3.f;
+        player.y -= forward.y * 3.f;
+    }
+
+    if (GetKeyState(0x51) < 0) {
+        ImVec2 left = angleToVector(playerAngle - (pi / 2.f));
+        player.x += left.x * 3.f;
+        player.y += left.y * 3.f;
+    }
+
+    if (GetKeyState(0x45) < 0) {
+        ImVec2 right = angleToVector(playerAngle + (pi / 2.f));
+        player.x += right.x * 3.f;
+        player.y += right.y * 3.f;
+    }
+}
+
+
 int main()
 {
     srand(time(NULL));
@@ -306,48 +348,12 @@ int main()
     hitInfo* distances = new hitInfo[cameraRayCount] {};
     float rayMaxDistance = 1000.f;
     
+    SetTimer(NULL, 1, 1000 / 60, timerCallback);
+
     MSG msg;
     ZeroMemory(&msg, sizeof(msg));
     while (msg.message != WM_QUIT)
-    {
-        if (GetKeyState(VK_LEFT) < 0) {
-            playerAngle -= (pi / 2.f) / 200;
-            if (playerAngle < 0.f) {
-                playerAngle += (pi * 2.f);
-            }
-        }
-
-        if (GetKeyState(VK_RIGHT) < 0) {
-            playerAngle += (pi / 2.f) / 200;
-            if (playerAngle > (pi * 2.f)) {
-                playerAngle -= (pi * 2.f);
-            }
-        }
-        
-        if (GetKeyState(VK_UP) < 0) {
-            ImVec2 forward = angleToVector(playerAngle);
-            player.x += forward.x * 0.75f;
-            player.y += forward.y * 0.75f;
-        }
-
-        if (GetKeyState(VK_DOWN) < 0) {
-            ImVec2 forward = angleToVector(playerAngle);
-            player.x -= forward.x * 0.75f;
-            player.y -= forward.y * 0.75f;
-        }
-        
-        if (GetKeyState(0x51) < 0) {
-			ImVec2 left = angleToVector(playerAngle - (pi / 2.f));
-            player.x += left.x * 0.75f;
-            player.y += left.y * 0.75f;
-        }
-
-        if (GetKeyState(0x45) < 0) {
-            ImVec2 right = angleToVector(playerAngle + (pi / 2.f));
-            player.x += right.x * 0.75f;
-            player.y += right.y * 0.75f;
-        }
-        
+    {     
         if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
         {
             ::TranslateMessage(&msg);
@@ -387,24 +393,26 @@ int main()
                 linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
             }      
             
-            //linesAddCircle({ winSize.x / 1.5f, winSize.y / 1.5f }, 25.f, 512, ImColor(100, 100, 100), true);
+            //generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
             
-            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
-            
-            ImVec2 TL = { 5, 5 };
-            ImVec2 TR = { winSize.x - 6,  5 };
-            ImVec2 BL = { 5,  winSize.y - 6 };
-            ImVec2 BR = { winSize.x - 6,  winSize.y - 6 };
+            ImVec2 A = { 30 + (640 / 2), 5};
+            ImVec2 B = { 30 + (640 / 2), 30 + (480 / 2)};
+            ImVec2 C = { 5, 30 + (480 / 2) };
+            ImVec2 D = { 5,  winSize.y - 6 };
+            ImVec2 E = { winSize.x - 6,  winSize.y - 6 };
+            ImVec2 F = { winSize.x - 6,  5 };
 
-            lines.push_back({ TL, TR, ImColor(200, 200, 255), true });
-            lines.push_back({ TR, BR, ImColor(200, 200, 255) });
-            lines.push_back({ BR, BL, ImColor(200, 200, 255) });
-            lines.push_back({ BL, TL, ImColor(200, 200, 255) });
-            
+            lines.push_back({ A, B, ImColor(200, 200, 255) });
+            lines.push_back({ B, C, ImColor(200, 200, 255) });
+            lines.push_back({ C, D, ImColor(200, 200, 255) });
+            lines.push_back({ D, E, ImColor(200, 200, 255) });
+            lines.push_back({ E, F, ImColor(200, 200, 255) });
+            lines.push_back({ F, A, ImColor(200, 200, 255), true });
+
             linesInit = true;
         }
         
-        dynamics[0].rotation += 0.01f;
+        //dynamics[0].rotation += 0.01f;
         
         for (line& cLine : lines) {
             if (cLine.reflective) {
