@@ -42,7 +42,41 @@ struct hitInfo {
     bool applyReflectiveModifier = false;
 };
 
+
+struct vert {
+    float angle;
+	float distance;
+};
+
+struct polygon {
+    ImVec2 position;
+    float rotation;
+    float scale;
+	std::vector<vert> vertices;
+    std::vector<line> generateFrame() {
+		std::vector<line> lines;
+		for (int i = 0; i < vertices.size(); i++) {
+			line l;
+			l.p1 = { vertices[i].distance * cos(vertices[i].angle + rotation), vertices[i].distance * sin(vertices[i].angle + rotation) };
+			l.p2 = { vertices[(i + 1) % vertices.size()].distance * cos(vertices[(i + 1) % vertices.size()].angle + rotation), vertices[(i + 1) % vertices.size()].distance * sin(vertices[(i + 1) % vertices.size()].angle + rotation) };
+			l.p1.x *= scale;
+			l.p1.y *= scale;
+			l.p2.x *= scale;
+			l.p2.y *= scale;
+			l.p1.x += position.x;
+			l.p1.y += position.y;
+			l.p2.x += position.x;
+			l.p2.y += position.y;
+            l.colour = i % 2 == 0 ? ImColor(255, 100, 100) : ImColor(100, 100, 255);
+            l.reflective = true;
+            lines.push_back(l);
+		}
+		return lines;
+    }
+};
+
 std::vector<line> lines;
+std::vector<polygon> dynamics;
 ImVec2 player = { -1, -1 };
 float playerAngle = pi * 1.5;
 bool playerInit = false;
@@ -92,6 +126,19 @@ float calculateReflectionAngle(line l, float incomingAngle) {
     float normalAngle = calculateNormalAngle(l);
     float angle = normalAngle - (incomingAngle - normalAngle);
     return angle;
+}
+
+void generateDynamicPolygon(ImVec2 position, float rotation, float scale, int sideCount) {
+	polygon p;
+	p.position = position;
+	p.rotation = rotation;
+	p.scale = scale;
+	p.vertices.clear();
+	for (int i = 0; i < sideCount; i++) {
+        vert v = { 2.f * pi * (float)i / sideCount, 1.f };
+		p.vertices.push_back(v);
+	}
+	dynamics.push_back(p);
 }
 
 void linesAddCircle(ImVec2 origin, float radius, int sides, ImColor colour, bool reflective = false) {
@@ -161,7 +208,18 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, boo
     bool isReflective = false;
     line* hitLine = 0;
     
-	for (line& line : lines) {
+    std::vector<line> frameMergedLines = {};
+    for (line& l : lines) {
+        frameMergedLines.push_back(l);
+    }
+
+	for (polygon& p : dynamics) {
+		for (line& l : p.generateFrame()) {
+			frameMergedLines.push_back(l);
+		}
+	}
+    
+	for (line& line : frameMergedLines) {
         ImVec2 hit = { -1, -1 };
 		if (intersect(&ray, &line, &hit)) {
             
@@ -183,7 +241,7 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, boo
             }
 		}
 	}
-    
+
     hitInf->position = closestHit;
     hitInf->distance = distanceToClosestHit;
     hitInf->colour = closestHitColour;
@@ -278,6 +336,18 @@ int main()
             player.y -= forward.y * 0.75f;
         }
         
+        if (GetKeyState(0x51) < 0) {
+			ImVec2 left = angleToVector(playerAngle - (pi / 2.f));
+            player.x += left.x * 0.75f;
+            player.y += left.y * 0.75f;
+        }
+
+        if (GetKeyState(0x45) < 0) {
+            ImVec2 right = angleToVector(playerAngle + (pi / 2.f));
+            player.x += right.x * 0.75f;
+            player.y += right.y * 0.75f;
+        }
+        
         if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
         {
             ::TranslateMessage(&msg);
@@ -315,9 +385,11 @@ int main()
                 float size = (rand() % 75) + 25;
 				ImColor randColour = ImColor(rand() % 255, rand() % 255, rand() % 255);
                 linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
-            }
+            }      
             
-            linesAddCircle({ winSize.x / 1.5f, winSize.y / 1.5f }, 25.f, 128, ImColor(100, 100, 100), true);
+            //linesAddCircle({ winSize.x / 1.5f, winSize.y / 1.5f }, 25.f, 512, ImColor(100, 100, 100), true);
+            
+            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
             
             ImVec2 TL = { 5, 5 };
             ImVec2 TR = { winSize.x - 6,  5 };
@@ -332,15 +404,27 @@ int main()
             linesInit = true;
         }
         
+        dynamics[0].rotation += 0.01f;
+        
         for (line& cLine : lines) {
-            draw->AddLine(cLine.p1, cLine.p2, 0xffffffff);
+            if (cLine.reflective) {
+				draw->AddLine(cLine.p1, cLine.p2, ImColor(100, 255, 100));
+            }
+            else {
+                draw->AddLine(cLine.p1, cLine.p2, 0xffffffff);
+            }
 
-            float normalAngle = calculateNormalAngle(cLine);
-			ImVec2 normal = angleToVector(normalAngle);
-			ImVec2 center = lineCenter(cLine);
-            ImVec2 normalStart = { center.x + (normal.x * -10.f), center.y + (normal.y * -10.f) };
-			ImVec2 normalEnd = { center.x + (normal.x * 10.f), center.y + (normal.y * 10.f) };
-            draw->AddLine(normalStart, normalEnd, ImColor(0, 255, 0));
+        }
+
+        for (polygon& p : dynamics) {
+            for (line& l : p.generateFrame()) {
+                if (l.reflective) {
+                    draw->AddLine(l.p1, l.p2, ImColor(100, 255, 100));
+                }
+                else {
+                    draw->AddLine(l.p1, l.p2, 0xffffffff);
+                }
+            }
         }
         
 		draw->AddCircleFilled(player, 5, 0xffffffff);        
@@ -426,8 +510,9 @@ int main()
 			ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
 			ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-            float brightness = (2.5f / (distance * distance)) * 7500.f;
-
+            float brightness = (5.f / (distance * distance)) * 10000.f; //first float: effective candella, second float: effective lumins
+            brightness = fmin(brightness, 1.5f); //clamps brightness to 150% overexposure
+            
 			float newR = colour.Value.x * brightness;
 			float newG = colour.Value.y * brightness;
 			float newB = colour.Value.z * brightness; 
