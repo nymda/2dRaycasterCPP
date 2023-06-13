@@ -501,8 +501,7 @@ int main()
                 
                 ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
 
-                float percentageOfMaxDistance = d == 0 ? distance / rayMaxDistance : runningStackedDistance / rayMaxDistance;
-                
+                float percentageOfMaxDistance = d == 0 ? distance / rayMaxDistance : runningStackedDistance / rayMaxDistance;      
                 
                 float height = (1.f - percentageOfMaxDistance) * _height;
                 if (height < 0.f) { height = 0.f; }
@@ -510,7 +509,7 @@ int main()
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-                float brightness = d == 0 ? (5.0f / (distance * distance)) * 12500.f : (2.5f / (runningStackedDistance * runningStackedDistance)) * 7500.f;
+                float brightness = d == 0 ? (5.0f / (runningStackedDistance * runningStackedDistance)) * 12500.f : (5.0f / (runningStackedDistance * runningStackedDistance)) * 12500.f;
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
 
                 float newR = colour.Value.x * brightness;
