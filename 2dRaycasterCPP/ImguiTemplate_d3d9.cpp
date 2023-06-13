@@ -496,8 +496,8 @@ int main()
                 if (d > 0) {
                     runningStackedDistance += distances[i].reflectionDistances[distances[i].hitDepth - d];
                 }
-                
-                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
+               
+                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110 + ((distances[i].hitDepth - d) * 10), 100);
 
                 float percentageOfMaxDistance = d == 0 ? distance / rayMaxDistance : runningStackedDistance / rayMaxDistance;      
                 
