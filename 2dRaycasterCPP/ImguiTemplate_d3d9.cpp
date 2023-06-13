@@ -273,6 +273,10 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
 	return false; 
 }
 
+//psuedo-3d window size
+float _width = 640 / 1.5;
+float _height = 480 / 1.5;
+
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
     if (GetKeyState(VK_LEFT) < 0) {
@@ -396,23 +400,23 @@ int main()
                 linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
             }      
             
-            //generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
+            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
             
-            ImVec2 A = { 30 + (640 / 2), 5};
-            ImVec2 B = { 30 + (640 / 2), 30 + (480 / 2)};
-            ImVec2 C = { 5, 30 + (480 / 2) };
+            ImVec2 A = { 30 + (_width), 5};
+            ImVec2 B = { 30 + (_width), 30 + (_height)};
+            ImVec2 C = { 5, 30 + (_height) };
             ImVec2 D = { 5,  winSize.y - 6 };
             ImVec2 E = { winSize.x - 6,  winSize.y - 6 };
             ImVec2 F = { winSize.x - 6,  5 };
 
             ImVec2 FA = { winSize.x - 6 - (30 * 5),  75};
-            ImVec2 FB = { (30 * 5) + (640 / 2),  75};
+            ImVec2 FB = { (30 * 5) + (_width),  75};
             
             lines.push_back({ A, B, ImColor(200, 200, 255) });
             lines.push_back({ B, C, ImColor(200, 200, 255) });
             lines.push_back({ C, D, ImColor(200, 200, 255) });
             lines.push_back({ D, E, ImColor(200, 200, 255) });
-            lines.push_back({ E, F, ImColor(200, 200, 255), true});
+            lines.push_back({ E, F, ImColor(200, 200, 255) });
             lines.push_back({ F, A, ImColor(200, 200, 255), true });
 
             //lines.push_back({ FA, FB, ImColor(200, 200, 255), true });
@@ -420,7 +424,7 @@ int main()
             linesInit = true;
         }
         
-        //dynamics[0].rotation += 0.01f;
+        dynamics[0].rotation += 0.01f;
         
         for (line& cLine : lines) {
             if (cLine.reflective) {
@@ -459,9 +463,6 @@ int main()
         }     
 
         //draw 3d environment
-        
-        float _width = 640 / 2;
-        float _height = 480 / 2;
         
         ImVec2 rendererMin = { 15, 15 };
         ImVec2 rendererMax = { 15 + _width, 15 + _height };
@@ -509,7 +510,7 @@ int main()
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-                float brightness = d == 0 ? (5.f / (distance * distance)) * 10000.f : (2.5f / (runningStackedDistance * runningStackedDistance)) * 7500.f;
+                float brightness = d == 0 ? (5.0f / (distance * distance)) * 12500.f : (2.5f / (runningStackedDistance * runningStackedDistance)) * 7500.f;
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
 
                 float newR = colour.Value.x * brightness;
