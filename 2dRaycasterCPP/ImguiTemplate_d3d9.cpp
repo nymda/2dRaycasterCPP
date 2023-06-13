@@ -37,9 +37,10 @@ struct line {
 struct hitInfo {
     ImVec2 position = { -1, -1 };
     float distance = -1.f;
-    float distanceToReflective = -1.f;
+    std::vector<float> reflectionDistances = { };
     ImColor colour = ImColor(0, 0, 0);
     bool applyReflectiveModifier = false;
+    int hitDepth = 0;
 };
 
 
@@ -197,7 +198,7 @@ bool intersect(line* a, line* b, ImVec2* out) {
     return false;
 }
 
-bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, bool reflection = false, float reflectionAddedDistance = 0.f) {
+bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int depth = 0, float reflectionAddedDistance = 0.f) {
 	ImVec2 target = ImVec2(origin.x + (cos(angle) * maxDistance), origin.y + (sin(angle) * maxDistance));
 
 	line ray = { origin, target };
@@ -223,11 +224,11 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, boo
         ImVec2 hit = { -1, -1 };
 		if (intersect(&ray, &line, &hit)) {
             
-            if (!reflection && line.ignorePrimaryRays) { continue; }
+            if (depth == 0 && line.ignorePrimaryRays) { continue; }
 
 			float distanceToHit = sqrt(pow(origin.x - hit.x, 2) + pow(origin.y - hit.y, 2));
 
-            if (!reflection) {
+            if (depth == 0) {
                 float mA = playerAngle - angle;
                 distanceToHit *= cos(mA);
             }
@@ -246,23 +247,24 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, boo
     hitInf->distance = distanceToClosestHit;
     hitInf->colour = closestHitColour;
     hitInf->applyReflectiveModifier = false;
+	hitInf->hitDepth = depth;
 
 	draw->AddLine(origin, closestHit, ImColor(255, 255, 255));
     
-    if (isReflective && maxDistance > 0.f && hitLine != 0 && !reflection) {
-        hitInf->distanceToReflective = distanceToClosestHit;
+    if (isReflective && maxDistance > 0.f && hitLine != 0) {
+        hitInf->reflectionDistances.push_back(distanceToClosestHit);
 		return castRay(closestHit, calculateReflectionAngle(*hitLine, (angle - pi)), maxDistance - distanceToClosestHit, hitInf, true, distanceToClosestHit);
     }
     
 	if (distanceToClosestHit < maxDistance) {
         hitInf->distance += reflectionAddedDistance;
-        if (reflection) {
+        if (depth > 0) {
             hitInf->applyReflectiveModifier = true;
         }
 		return true;
 	}
 
-    if (reflection) {
+    if (depth > 0) {
         hitInf->distance = maxDistance + reflectionAddedDistance;
         hitInf->applyReflectiveModifier = true;
     }
@@ -406,7 +408,7 @@ int main()
             lines.push_back({ B, C, ImColor(200, 200, 255) });
             lines.push_back({ C, D, ImColor(200, 200, 255) });
             lines.push_back({ D, E, ImColor(200, 200, 255) });
-            lines.push_back({ E, F, ImColor(200, 200, 255) });
+            lines.push_back({ E, F, ImColor(200, 200, 255), true });
             lines.push_back({ F, A, ImColor(200, 200, 255), true });
 
             linesInit = true;
@@ -480,52 +482,40 @@ int main()
 
         for (int i = 0; i < cameraRayCount; i++){
 			float distance = distances[i].distance;
-            float stackedDistance = distances[i].distanceToReflective;
 
-            if (distances[i].applyReflectiveModifier) {
-                ImColor colour = ImColor(100, 110, 100);
+            float runningStackedDistance = 0;
+            for (int d = distances[i].hitDepth; d >= 0; d--) {
+                
+                float stackedDistance = -1;
+                if (d > 0) {
+                    stackedDistance = distances[i].reflectionDistances[distances[i].hitDepth - d];
+                    runningStackedDistance += stackedDistance;
+                }
+                
+                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
 
-                float percentageOfMaxDistance = stackedDistance / rayMaxDistance;
-
+                float percentageOfMaxDistance = d == 0 ? distance / rayMaxDistance : stackedDistance / rayMaxDistance;
+                
+                if (d > 0) {
+					printf_s("percentageOfMaxDistance: %f, distance: %f, runningStackedDistance: %f, rayMaxDistance: %f\n", percentageOfMaxDistance, distance, runningStackedDistance, rayMaxDistance);
+				}
+                
                 float height = (1.f - percentageOfMaxDistance) * _height;
                 if (height < 0.f) { height = 0.f; }
 
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-                float brightness = (2.5f / (stackedDistance * stackedDistance)) * 7500.f;
-
-                if (brightness > 0.25f) {
-                    brightness = 0.25f;
-                }
+                float brightness = d == 0 ? (5.f / (distance * distance)) * 10000.f : (2.5f / (stackedDistance * stackedDistance)) * 7500.f;
+                brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
 
                 float newR = colour.Value.x * brightness;
                 float newG = colour.Value.y * brightness;
                 float newB = colour.Value.z * brightness;
 
                 draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB));
+                
             }
-
-
-            ImColor colour = distances[i].colour;
-            bool applyReflectionColouring = distances[i].applyReflectiveModifier;
-            
-			float percentageOfMaxDistance = distance / rayMaxDistance;
-
-			float height = (1.f - percentageOfMaxDistance) * _height;
-            if (height < 0.f) { height = 0.f; }
-
-			ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
-			ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
-
-            float brightness = (5.f / (distance * distance)) * 10000.f; //first float: effective candella, second float: effective lumins
-            brightness = fmin(brightness, 1.5f); //clamps brightness to 150% overexposure
-            
-			float newR = colour.Value.x * brightness;
-			float newG = colour.Value.y * brightness;
-			float newB = colour.Value.z * brightness; 
-          
-			draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB));
 		}
         
         draw->AddRect(rendererMin, rendererMax, 0xffffffff);
