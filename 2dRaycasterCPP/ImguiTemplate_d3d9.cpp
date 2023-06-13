@@ -251,9 +251,10 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
 
 	draw->AddLine(origin, closestHit, ImColor(255, 255, 255));
     
+    hitInf->reflectionDistances.push_back(distanceToClosestHit);
+    
     if (isReflective && maxDistance > 0.f && hitLine != 0) {
-        hitInf->reflectionDistances.push_back(distanceToClosestHit);
-		return castRay(closestHit, calculateReflectionAngle(*hitLine, (angle - pi)), maxDistance - distanceToClosestHit, hitInf, true, distanceToClosestHit);
+		return castRay(closestHit, calculateReflectionAngle(*hitLine, (angle - pi)), maxDistance - distanceToClosestHit, hitInf, depth + 1, reflectionAddedDistance + distanceToClosestHit);
     }
     
 	if (distanceToClosestHit < maxDistance) {
@@ -404,13 +405,18 @@ int main()
             ImVec2 E = { winSize.x - 6,  winSize.y - 6 };
             ImVec2 F = { winSize.x - 6,  5 };
 
+            ImVec2 FA = { winSize.x - 6 - (30 * 5),  75};
+            ImVec2 FB = { (30 * 5) + (640 / 2),  75};
+            
             lines.push_back({ A, B, ImColor(200, 200, 255) });
             lines.push_back({ B, C, ImColor(200, 200, 255) });
             lines.push_back({ C, D, ImColor(200, 200, 255) });
             lines.push_back({ D, E, ImColor(200, 200, 255) });
-            lines.push_back({ E, F, ImColor(200, 200, 255), true });
+            lines.push_back({ E, F, ImColor(200, 200, 255), true});
             lines.push_back({ F, A, ImColor(200, 200, 255), true });
 
+            //lines.push_back({ FA, FB, ImColor(200, 200, 255), true });
+            
             linesInit = true;
         }
         
@@ -483,7 +489,7 @@ int main()
         for (int i = 0; i < cameraRayCount; i++){
 			float distance = distances[i].distance;
 
-            float runningStackedDistance = 0;
+            float runningStackedDistance = 0.f;
             for (int d = distances[i].hitDepth; d >= 0; d--) {
                 
                 float stackedDistance = -1;
@@ -494,11 +500,8 @@ int main()
                 
                 ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
 
-                float percentageOfMaxDistance = d == 0 ? distance / rayMaxDistance : stackedDistance / rayMaxDistance;
+                float percentageOfMaxDistance = d == 0 ? distance / rayMaxDistance : runningStackedDistance / rayMaxDistance;
                 
-                if (d > 0) {
-					printf_s("percentageOfMaxDistance: %f, distance: %f, runningStackedDistance: %f, rayMaxDistance: %f\n", percentageOfMaxDistance, distance, runningStackedDistance, rayMaxDistance);
-				}
                 
                 float height = (1.f - percentageOfMaxDistance) * _height;
                 if (height < 0.f) { height = 0.f; }
@@ -506,15 +509,15 @@ int main()
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-                float brightness = d == 0 ? (5.f / (distance * distance)) * 10000.f : (2.5f / (stackedDistance * stackedDistance)) * 7500.f;
+                float brightness = d == 0 ? (5.f / (distance * distance)) * 10000.f : (2.5f / (runningStackedDistance * runningStackedDistance)) * 7500.f;
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
 
                 float newR = colour.Value.x * brightness;
                 float newG = colour.Value.y * brightness;
                 float newB = colour.Value.z * brightness;
-
-                draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB));
+                float newA = d == 0 ? 1 : 0.5;
                 
+                draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB, newA));            
             }
 		}
         
