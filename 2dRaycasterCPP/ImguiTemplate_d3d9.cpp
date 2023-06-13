@@ -492,11 +492,9 @@ int main()
 
             float runningStackedDistance = 0.f;
             for (int d = distances[i].hitDepth; d >= 0; d--) {
-                
-                float stackedDistance = -1;
+               
                 if (d > 0) {
-                    stackedDistance = distances[i].reflectionDistances[distances[i].hitDepth - d];
-                    runningStackedDistance += stackedDistance;
+                    runningStackedDistance += distances[i].reflectionDistances[distances[i].hitDepth - d];
                 }
                 
                 ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
@@ -511,6 +509,7 @@ int main()
 
                 float brightness = d == 0 ? (5.0f / (distance * distance)) * 12500.f : (5.0f / (runningStackedDistance * runningStackedDistance)) * 12500.f;
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
+                brightness = fmax(brightness, 0.1f);
 
                 float newR = colour.Value.x * brightness;
                 float newG = colour.Value.y * brightness;
