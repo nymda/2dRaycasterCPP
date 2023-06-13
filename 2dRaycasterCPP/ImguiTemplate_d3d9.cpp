@@ -509,7 +509,7 @@ int main()
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-                float brightness = d == 0 ? (5.0f / (runningStackedDistance * runningStackedDistance)) * 12500.f : (5.0f / (runningStackedDistance * runningStackedDistance)) * 12500.f;
+                float brightness = d == 0 ? (5.0f / (distance * distance)) * 12500.f : (5.0f / (runningStackedDistance * runningStackedDistance)) * 12500.f;
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
 
                 float newR = colour.Value.x * brightness;
