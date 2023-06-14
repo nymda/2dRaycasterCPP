@@ -50,6 +50,7 @@ struct vert {
 };
 
 struct polygon {
+    bool reflective = false;
     ImVec2 position;
     float rotation;
     float scale;
@@ -68,8 +69,8 @@ struct polygon {
 			l.p1.y += position.y;
 			l.p2.x += position.x;
 			l.p2.y += position.y;
-            l.colour = i % 2 == 0 ? ImColor(255, 100, 100) : ImColor(100, 100, 255);
-            l.reflective = true;
+            l.colour = ImColor(100, 100, 255);
+            l.reflective = reflective;
             lines.push_back(l);
 		}
 		return lines;
@@ -129,8 +130,9 @@ float calculateReflectionAngle(line l, float incomingAngle) {
     return angle;
 }
 
-void generateDynamicPolygon(ImVec2 position, float rotation, float scale, int sideCount) {
+void generateDynamicPolygon(ImVec2 position, float rotation, float scale, int sideCount, bool reflective = false) {
 	polygon p;
+    p.reflective = reflective;
 	p.position = position;
 	p.rotation = rotation;
 	p.scale = scale;
@@ -392,15 +394,19 @@ int main()
 
         if (!linesInit) {
 
-            for (int i = 0; i < 8; i++) {
-				float x1 = rand() % (int)winSize.x;
-				float y1 = rand() % (int)winSize.y;
-                float size = (rand() % 75) + 25;
-				ImColor randColour = ImColor(rand() % 255, rand() % 255, rand() % 255);
-                linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
-            }      
+    //        for (int i = 0; i < 8; i++) {
+				//float x1 = rand() % (int)winSize.x;
+				//float y1 = rand() % (int)winSize.y;
+    //            float size = (rand() % 75) + 25;
+				//ImColor randColour = ImColor(rand() % 255, rand() % 255, rand() % 255);
+    //            linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
+    //        }      
+    //        
+            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3, true);
+            generateDynamicPolygon({ winSize.x / 1.25f, winSize.y / 2.f }, 0.f, 75.f, 4);
             
-            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
+            linesAddCircle({ winSize.x / 2.f, winSize.y / 1.5f }, 100.f, 256, ImColor(100, 255, 100), true);
+            linesAddCircle({ winSize.x / 2.f, winSize.y / 1.5f }, 25.f, 50, ImColor(100, 255, 100));
             
             ImVec2 A = { 30 + (_width), 5};
             ImVec2 B = { 30 + (_width), 30 + (_height)};
@@ -424,7 +430,8 @@ int main()
             linesInit = true;
         }
         
-        dynamics[0].rotation += 0.01f;
+        dynamics[0].rotation += 0.005f;
+        dynamics[1].rotation -= 0.005f;
         
         for (line& cLine : lines) {
             if (cLine.reflective) {
