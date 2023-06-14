@@ -279,6 +279,9 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
 float _width = 640 / 1.5;
 float _height = 480 / 1.5;
 
+float _lumens = 5.f;
+float _candella = 10000.f;
+
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
     if (GetKeyState(VK_LEFT) < 0) {
@@ -404,9 +407,7 @@ int main()
     //        
             generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3, true);
             generateDynamicPolygon({ winSize.x / 1.25f, winSize.y / 2.f }, 0.f, 75.f, 4);
-            
-            linesAddCircle({ winSize.x / 2.f, winSize.y / 1.5f }, 100.f, 256, ImColor(100, 255, 100), true);
-            linesAddCircle({ winSize.x / 2.f, winSize.y / 1.5f }, 25.f, 50, ImColor(100, 255, 100));
+
             
             ImVec2 A = { 30 + (_width), 5};
             ImVec2 B = { 30 + (_width), 30 + (_height)};
@@ -417,22 +418,39 @@ int main()
 
             ImVec2 FA = { winSize.x - 6 - (30 * 5),  75};
             ImVec2 FB = { (30 * 5) + (_width),  75};
+
+            ImVec2 WAA = { 30 + (_width), 30 + (_height) };
+            ImVec2 WAB = { 30 + (_width), 100 + 30 + (_height) };
             
+            ImVec2 WBA = { 30 + (_width), winSize.y - 6 };
+            ImVec2 WBB = { 30 + (_width), winSize.y - 100 - 6 };
+
+            ImVec2 WAAA = { 30 + (_width) - 25, 30 + (_height) };
+            ImVec2 WABB = { 30 + (_width) - 25, 100 + 30 + (_height) };
+
+            ImVec2 WBAA = { 30 + (_width) - 25, winSize.y - 6 };
+            ImVec2 WBBB = { 30 + (_width) - 25, winSize.y - 100 - 6 };
+
             lines.push_back({ A, B, ImColor(200, 200, 255) });
-            lines.push_back({ B, C, ImColor(200, 200, 255) });
+            lines.push_back({ WAAA, C, ImColor(200, 200, 255), true });
             lines.push_back({ C, D, ImColor(200, 200, 255) });
             lines.push_back({ D, E, ImColor(200, 200, 255) });
             lines.push_back({ E, F, ImColor(200, 200, 255) });
             lines.push_back({ F, A, ImColor(200, 200, 255), true });
 
-            //lines.push_back({ FA, FB, ImColor(200, 200, 255), true });
-            
+            lines.push_back({ WAA, WAB, ImColor(200, 200, 255) });
+            lines.push_back({ WAAA, WABB, ImColor(200, 200, 255) });
+            lines.push_back({ WABB, WAB, ImColor(200, 200, 255) });
+
+            generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 50.f, 2);
+
             linesInit = true;
         }
         
         dynamics[0].rotation += 0.005f;
         dynamics[1].rotation -= 0.005f;
-        
+        dynamics[2].rotation += 0.1f;
+
         for (line& cLine : lines) {
             if (cLine.reflective) {
 				draw->AddLine(cLine.p1, cLine.p2, ImColor(100, 255, 100));
@@ -494,6 +512,9 @@ int main()
             }
         }
 
+        float frameTotalBrightness = 0.f;
+        float frameBrightnessAverage = 0.f;
+        bool overExposure = false;
         for (int i = 0; i < cameraRayCount; i++){
 			float distance = distances[i].distance;
 
@@ -514,7 +535,17 @@ int main()
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
 
-                float brightness = d == 0 ? (5.0f / (distance * distance)) * 12500.f : (5.0f / (runningStackedDistance * runningStackedDistance)) * 12500.f;
+                float brightness = d == 0 ? (_lumens / (distance * distance)) * _candella : (_lumens / (runningStackedDistance * runningStackedDistance)) * _candella;
+
+                if (d == 0) {
+                    frameTotalBrightness += brightness;
+                    frameBrightnessAverage = frameTotalBrightness / i;
+
+                    if (brightness > 1.f) {
+                        overExposure = true;
+                    }
+                }
+
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
                 brightness = fmax(brightness, 0.1f);
 
@@ -526,6 +557,15 @@ int main()
                 draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB, newA));            
             }
 		}
+
+        if (overExposure && _lumens > 0.5f) {
+            _lumens -= 0.025f;
+            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+        }
+        else if (frameBrightnessAverage < 0.25f && _lumens < 5.f) {
+            _lumens += 0.025f;
+            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+        }
         
         draw->AddRect(rendererMin, rendererMax, 0xffffffff);
         
@@ -610,6 +650,26 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     switch (msg)
     {
     case WM_KEYDOWN:
+        if (wParam == VK_OEM_PLUS)
+        {
+            _lumens += 0.1f;
+            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+        }
+        if (wParam == VK_OEM_MINUS)
+        {
+            _lumens -= 0.1f;
+            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+        }
+        if (wParam == VK_OEM_6)
+        {
+            _candella += 10.f;
+            printf_s("Lumens: %0.2f | Candella: %.2f\n", _lumens, _candella);
+        }
+        if (wParam == VK_OEM_4)
+        {
+            _candella -= 10.f;
+            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+        }
 		return 0;
         
     case WM_SIZE:
