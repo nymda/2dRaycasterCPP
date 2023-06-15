@@ -282,6 +282,9 @@ float _height = 480 / 1.5;
 float _lumens = 5.f;
 float _candella = 10000.f;
 
+float _focalLength = 0.5f;  // Focal length of the virtual camera
+float _viewerDistance = 1.0f;  // Distance from the viewer to the screen
+
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
     if (GetKeyState(VK_LEFT) < 0) {
@@ -405,9 +408,7 @@ int main()
     //            linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
     //        }      
     //        
-            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3, true);
-            generateDynamicPolygon({ winSize.x / 1.25f, winSize.y / 2.f }, 0.f, 75.f, 4);
-
+            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
             
             ImVec2 A = { 30 + (_width), 5};
             ImVec2 B = { 30 + (_width), 30 + (_height)};
@@ -434,7 +435,7 @@ int main()
             lines.push_back({ A, B, ImColor(200, 200, 255) });
             lines.push_back({ WAAA, C, ImColor(200, 200, 255), true });
             lines.push_back({ C, D, ImColor(200, 200, 255) });
-            lines.push_back({ D, E, ImColor(200, 200, 255) });
+            lines.push_back({ D, E, ImColor(200, 200, 255), true });
             lines.push_back({ E, F, ImColor(200, 200, 255) });
             lines.push_back({ F, A, ImColor(200, 200, 255), true });
 
@@ -442,14 +443,13 @@ int main()
             lines.push_back({ WAAA, WABB, ImColor(200, 200, 255) });
             lines.push_back({ WABB, WAB, ImColor(200, 200, 255) });
 
-            generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 50.f, 2);
+            generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4);
 
             linesInit = true;
         }
         
         dynamics[0].rotation += 0.005f;
         dynamics[1].rotation -= 0.005f;
-        dynamics[2].rotation += 0.1f;
 
         for (line& cLine : lines) {
             if (cLine.reflective) {
@@ -525,12 +525,13 @@ int main()
                     runningStackedDistance += distances[i].reflectionDistances[distances[i].hitDepth - d];
                 }
                
-                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110 + ((distances[i].hitDepth - d) * 10), 100);
+                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
 
-                float percentageOfMaxDistance = d == 0 ? distance / rayMaxDistance : runningStackedDistance / rayMaxDistance;      
-                
-                float height = (1.f - percentageOfMaxDistance) * _height;
+                float apparentSize = _height * _focalLength / (distance + _viewerDistance);
+                float height = apparentSize * _height;
+
                 if (height < 0.f) { height = 0.f; }
+                if (height > _height) { height = _height; }
 
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
@@ -549,12 +550,15 @@ int main()
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
                 brightness = fmax(brightness, 0.1f);
 
+                float gBrightnessModifier = (float)((float)((distances[i].hitDepth - d) * 5.f) / 255.f);
+                //printf_s("gbm: %f\n", gBrightnessModifier);
+
                 float newR = colour.Value.x * brightness;
                 float newG = colour.Value.y * brightness;
                 float newB = colour.Value.z * brightness;
                 float newA = d == 0 ? 1 : 0.5;
                 
-                draw->AddRectFilled(barMin, barMax, ImColor(newR, newG, newB, newA));            
+                draw->AddRectFilled(barMin, barMax, ImColor(newR, newG + gBrightnessModifier, newB, newA));
             }
 		}
 
@@ -652,23 +656,23 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_KEYDOWN:
         if (wParam == VK_OEM_PLUS)
         {
-            _lumens += 0.1f;
-            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+            _focalLength += 0.01f;
+            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
         }
         if (wParam == VK_OEM_MINUS)
         {
-            _lumens -= 0.1f;
-            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+            _focalLength -= 0.01f;
+            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
         }
         if (wParam == VK_OEM_6)
         {
-            _candella += 10.f;
-            printf_s("Lumens: %0.2f | Candella: %.2f\n", _lumens, _candella);
+            _viewerDistance += 0.01f;
+            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
         }
         if (wParam == VK_OEM_4)
         {
-            _candella -= 10.f;
-            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+            _viewerDistance -= 0.01f;
+            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
         }
 		return 0;
         
