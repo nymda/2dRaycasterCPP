@@ -282,8 +282,7 @@ float _height = 480 / 1.5;
 float _lumens = 5.f;
 float _candella = 10000.f;
 
-float _focalLength = 0.5f;  // Focal length of the virtual camera
-float _viewerDistance = 1.0f;  // Distance from the viewer to the screen
+float _focalLength = 0.5f;
 
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
@@ -433,11 +432,11 @@ int main()
             ImVec2 WBBB = { 30 + (_width) - 25, winSize.y - 100 - 6 };
 
             lines.push_back({ A, B, ImColor(200, 200, 255) });
-            lines.push_back({ WAAA, C, ImColor(200, 200, 255), true });
+            lines.push_back({ WAAA, C, ImColor(255, 255, 255), true });
             lines.push_back({ C, D, ImColor(200, 200, 255) });
-            lines.push_back({ D, E, ImColor(200, 200, 255), true });
+            lines.push_back({ D, E, ImColor(200, 200, 255) });
             lines.push_back({ E, F, ImColor(200, 200, 255) });
-            lines.push_back({ F, A, ImColor(200, 200, 255), true });
+            lines.push_back({ F, A, ImColor(255, 255, 255), true });
 
             lines.push_back({ WAA, WAB, ImColor(200, 200, 255) });
             lines.push_back({ WAAA, WABB, ImColor(200, 200, 255) });
@@ -495,22 +494,23 @@ int main()
 		float rendererBarWidth = _width / (float)cameraRayCount;
 		draw->AddRectFilled(rendererMin, rendererMax, ImColor(0, 0, 0));
         
-        bool floor = true;
-        if (floor) {
-            int floorSegments = 25;
-            float floorSegmentHeight = (_height / 2.f) / floorSegments;
-            int floorBrightnessMax = 255 / 3;
-            int floorBrightnessMin = 25;
-            int floorBrightnessStep = (floorBrightnessMax - floorBrightnessMin) / floorSegments;
+        //draw the floor and ceiling
 
-            for (int i = 0; i < floorSegments; i++) {
-                ImVec2 floorMin = { rendererMin.x, rendererCenterLeft.y + (floorSegmentHeight * (float)i) };
-                ImVec2 floorMax = { rendererMax.x, rendererCenterLeft.y + (floorSegmentHeight * (float)(i + 1)) };
-                ImColor segmentColour = ImColor((floorBrightnessStep * (i)), (floorBrightnessStep * (i)), (floorBrightnessStep * (i)));
-                draw->AddRectFilled(floorMin, floorMax, segmentColour);
-				draw->AddRectFilled({ floorMin.x, rendererCenterLeft.y - (floorSegmentHeight * (float)(i + 1)) }, { floorMax.x, rendererCenterLeft.y - (floorSegmentHeight * (float)(i)) }, segmentColour);
-            }
+        int floorSegments = 25;
+        float floorSegmentHeight = (_height / 2.f) / floorSegments;
+        int floorBrightnessMax = 255 / 3;
+        int floorBrightnessMin = 25;
+        int floorBrightnessStep = (floorBrightnessMax - floorBrightnessMin) / floorSegments;
+
+        for (int i = 0; i < floorSegments; i++) {
+            ImVec2 floorMin = { rendererMin.x, rendererCenterLeft.y + (floorSegmentHeight * (float)i) };
+            ImVec2 floorMax = { rendererMax.x, rendererCenterLeft.y + (floorSegmentHeight * (float)(i + 1)) };
+            ImColor segmentColour = ImColor((floorBrightnessStep * (i)), (floorBrightnessStep * (i)), (floorBrightnessStep * (i)));
+            draw->AddRectFilled(floorMin, floorMax, segmentColour);
+            draw->AddRectFilled({ floorMin.x, rendererCenterLeft.y - (floorSegmentHeight * (float)(i + 1)) }, { floorMax.x, rendererCenterLeft.y - (floorSegmentHeight * (float)(i)) }, segmentColour);
         }
+
+        //draw the actual frame
 
         float frameTotalBrightness = 0.f;
         float frameBrightnessAverage = 0.f;
@@ -527,7 +527,7 @@ int main()
                
                 ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
 
-                float apparentSize = _height * _focalLength / (distance + _viewerDistance);
+                float apparentSize = _height * _focalLength / distance;
                 float height = apparentSize * _height;
 
                 if (height < 0.f) { height = 0.f; }
@@ -551,7 +551,6 @@ int main()
                 brightness = fmax(brightness, 0.1f);
 
                 float gBrightnessModifier = (float)((float)((distances[i].hitDepth - d) * 5.f) / 255.f);
-                //printf_s("gbm: %f\n", gBrightnessModifier);
 
                 float newR = colour.Value.x * brightness;
                 float newG = colour.Value.y * brightness;
@@ -657,23 +656,14 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if (wParam == VK_OEM_PLUS)
         {
             _focalLength += 0.01f;
-            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
+            printf_s("FC: %0.2f\n", _focalLength);
         }
         if (wParam == VK_OEM_MINUS)
         {
             _focalLength -= 0.01f;
-            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
+            printf_s("FC: %0.2f\n", _focalLength);
         }
-        if (wParam == VK_OEM_6)
-        {
-            _viewerDistance += 0.01f;
-            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
-        }
-        if (wParam == VK_OEM_4)
-        {
-            _viewerDistance -= 0.01f;
-            printf_s("FC: %0.2f | VD: %0.2f\n", _focalLength, _viewerDistance);
-        }
+
 		return 0;
         
     case WM_SIZE:
