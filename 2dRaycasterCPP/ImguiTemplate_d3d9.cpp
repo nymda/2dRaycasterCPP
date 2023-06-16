@@ -159,6 +159,17 @@ void linesAddCircle(ImVec2 origin, float radius, int sides, ImColor colour, bool
     delete[] points;
 }
 
+void linesAddRectangle(ImVec2 p1, ImVec2 p2, ImColor colour, bool reflective) {
+	lines.push_back({ p1, ImVec2(p1.x, p2.y), colour, reflective });
+	lines.push_back({ ImVec2(p1.x, p2.y), p2, colour, reflective });
+	lines.push_back({ p2, ImVec2(p2.x, p1.y), colour, reflective });
+	lines.push_back({ ImVec2(p2.x, p1.y), p1, colour, reflective });
+}
+
+void linesAddRectangle(ImVec2 origin, float width, float height, ImColor colour, bool reflective) {
+	linesAddRectangle(origin, { origin.x + width, origin.y + height }, colour, reflective);
+}
+
 bool intersect(line* a, line* b, ImVec2* out) {
     ImVec2 p = a->p1;
     ImVec2 q = b->p1;
@@ -444,6 +455,9 @@ int main()
 
             generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4);
 
+            linesAddRectangle({ 1000, (winSize.y / 2.f) - 100.f }, 25.f, 200.f, ImColor(255, 255, 255), true);
+            linesAddRectangle({ 1100, (winSize.y / 2.f) - 100.f }, 25.f, 200.f, ImColor(255, 255, 255), true);
+            
             linesInit = true;
         }
         
@@ -525,9 +539,9 @@ int main()
                     runningStackedDistance += distances[i].reflectionDistances[distances[i].hitDepth - d];
                 }
                
-                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110, 100);
+                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110 + ((distances[i].hitDepth - d) * 10), 100);
 
-                float apparentSize = _height * _focalLength / distance;
+                float apparentSize = d == 0 ? _height * _focalLength / distance : _height * _focalLength / runningStackedDistance;
                 float height = apparentSize * _height;
 
                 if (height < 0.f) { height = 0.f; }
