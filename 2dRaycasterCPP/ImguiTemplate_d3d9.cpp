@@ -41,8 +41,8 @@ struct hitInfo {
     ImColor colour = ImColor(0, 0, 0);
     bool applyReflectiveModifier = false;
     int hitDepth = 0;
+    bool hitFinished = false;
 };
-
 
 struct vert {
     float angle;
@@ -275,6 +275,7 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
         if (depth > 0) {
             hitInf->applyReflectiveModifier = true;
         }
+        hitInf->hitFinished = true;
 		return true;
 	}
 
@@ -282,7 +283,7 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
         hitInf->distance = maxDistance + reflectionAddedDistance;
         hitInf->applyReflectiveModifier = true;
     }
-    
+    hitInf->hitFinished = false;
 	return false; 
 }
 
@@ -371,7 +372,7 @@ int main()
     draw = ImGui::GetForegroundDrawList();
     int cameraRayCount = 128;
     hitInfo* distances = new hitInfo[cameraRayCount] {};
-    float rayMaxDistance = 1000.f;
+    float rayMaxDistance = 5000.f;
     
     SetTimer(NULL, 1, 1000 / 60, timerCallback);
 
@@ -538,11 +539,16 @@ int main()
                 if (d > 0) {
                     runningStackedDistance += distances[i].reflectionDistances[distances[i].hitDepth - d];
                 }
-               
+                
                 ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110 + ((distances[i].hitDepth - d) * 10), 100);
 
                 float apparentSize = d == 0 ? _height * _focalLength / distance : _height * _focalLength / runningStackedDistance;
                 float height = apparentSize * _height;
+                if (d == 0 && !distances[i].hitFinished) {
+                    height = 0.f;
+                }
+                
+
 
                 if (height < 0.f) { height = 0.f; }
                 if (height > _height) { height = _height; }
