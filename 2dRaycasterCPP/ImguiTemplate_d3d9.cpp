@@ -266,7 +266,7 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
     
     hitInf->reflectionDistances.push_back(distanceToClosestHit);
     
-    if (isReflective && maxDistance > 0.f && hitLine != 0) {
+    if (isReflective && maxDistance > 0.f && hitLine != 0 && depth <= 50) { //allow a maximum of 50 recursions, this is plenty and too many causes lag and stack overflows
 		return castRay(closestHit, calculateReflectionAngle(*hitLine, (angle - pi)), maxDistance - distanceToClosestHit, hitInf, depth + 1, reflectionAddedDistance + distanceToClosestHit);
     }
     
@@ -291,9 +291,9 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
 float _width = 640 / 1.5;
 float _height = 480 / 1.5;
 
+//rendering paramters
 float _lumens = 5.f;
 float _candella = 10000.f;
-
 float _focalLength = 0.5f;
 
 //fires 60 times per second
@@ -456,8 +456,8 @@ int main()
 
             generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4);
 
-            linesAddRectangle({ 1000, (winSize.y / 2.f) - 100.f }, 25.f, 200.f, ImColor(255, 255, 255), true);
-            linesAddRectangle({ 1100, (winSize.y / 2.f) - 100.f }, 25.f, 200.f, ImColor(255, 255, 255), true);
+            linesAddRectangle({ 1000, (winSize.y / 2.f) - 100.f }, 1.f, 200.f, ImColor(255, 255, 255), true);
+            linesAddRectangle({ 1100, (winSize.y / 2.f) - 100.f }, 1.f, 200.f, ImColor(255, 255, 255), true);
             
             linesInit = true;
         }
