@@ -1,14 +1,14 @@
 #include <iostream>
-#include "imgui.h"
-#include "imgui_impl_dx9.h"
-#include "imgui_impl_win32.h"
 #include <d3d9.h>
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
 #include <tchar.h>
 #include <vector>
 
-#define pi 3.14159265358979323846f
+#include "globals.h"
+#include "structures.h"
+#include "logics.h"
+#include "drawing.h"
 
 static LPDIRECT3D9              g_pD3D = NULL;
 static LPDIRECT3DDEVICE9        g_pd3dDevice = NULL;
@@ -18,283 +18,6 @@ bool CreateDeviceD3D(HWND hWnd);
 void CleanupDeviceD3D();
 void ResetDevice();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-struct simpleColour {
-    char R;
-    char G;
-    char B;
-    char A;
-};
-
-struct line {
-    ImVec2 p1;
-    ImVec2 p2;
-    ImColor colour = ImColor(255, 255, 255);
-    bool reflective = false;
-    bool ignorePrimaryRays = false;
-};
-
-struct hitInfo {
-    ImVec2 position = { -1, -1 };
-    float distance = -1.f;
-    std::vector<float> reflectionDistances = { };
-    ImColor colour = ImColor(0, 0, 0);
-    bool applyReflectiveModifier = false;
-    int hitDepth = 0;
-    bool hitFinished = false;
-};
-
-struct vert {
-    float angle;
-	float distance;
-};
-
-struct polygon {
-    bool reflective = false;
-    ImVec2 position;
-    float rotation;
-    float scale;
-	std::vector<vert> vertices;
-    std::vector<line> generateFrame() {
-		std::vector<line> lines;
-		for (int i = 0; i < vertices.size(); i++) {
-			line l;
-			l.p1 = { vertices[i].distance * cos(vertices[i].angle + rotation), vertices[i].distance * sin(vertices[i].angle + rotation) };
-			l.p2 = { vertices[(i + 1) % vertices.size()].distance * cos(vertices[(i + 1) % vertices.size()].angle + rotation), vertices[(i + 1) % vertices.size()].distance * sin(vertices[(i + 1) % vertices.size()].angle + rotation) };
-			l.p1.x *= scale;
-			l.p1.y *= scale;
-			l.p2.x *= scale;
-			l.p2.y *= scale;
-			l.p1.x += position.x;
-			l.p1.y += position.y;
-			l.p2.x += position.x;
-			l.p2.y += position.y;
-            l.colour = ImColor(100, 100, 255);
-            l.reflective = reflective;
-            lines.push_back(l);
-		}
-		return lines;
-    }
-};
-
-std::vector<line> lines;
-std::vector<polygon> dynamics;
-ImVec2 player = { -1, -1 };
-float playerAngle = pi * 1.5;
-bool playerInit = false;
-bool linesInit = false;
-ImDrawList* draw = 0;
-
-ImVec2 normalise(ImVec2 vector) {
-	float l = sqrt(vector.x * vector.x + vector.y * vector.y);
-    return { vector.x / l, vector.y / l };
-}
-
-ImVec2 angleToVector(float angle) {
-    return { cos(angle), sin(angle) };
-}
-
-ImVec2 vectorToPoint(ImVec2 source, ImVec2 target) {
-	ImVec2 v = { target.x - source.x, target.y - source.y };
-	return normalise(v);
-}
-
-float angleToPoint(ImVec2 source, ImVec2 target) {
-	ImVec2 v = vectorToPoint(source, target);
-	return atan2(v.y, v.x);
-}
-
-float crossProduct(const ImVec2& a, const ImVec2& b) {
-    return a.x * b.y - a.y * b.x;
-}
-
-ImVec2 lineCenter(line l) {
-	return { l.p1.x + (l.p2.x - l.p1.x) / 2.f, l.p1.y + (l.p2.y - l.p1.y) / 2.f }; 
-}
-
-float distance(ImVec2 p1, ImVec2 p2) {
-	return sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2)); 
-}
-
-float calculateNormalAngle(line l) {
-    ImVec2 normal = ImVec2{ l.p2.x - l.p1.x, l.p2.y - l.p1.y };
-    float angle = atan2(normal.y, normal.x);
-    angle += pi / 2.f;
-    if (angle < 0) angle += pi * 2.f;
-    return angle;
-}
-
-float calculateReflectionAngle(line l, float incomingAngle) {
-    float normalAngle = calculateNormalAngle(l);
-    float angle = normalAngle - (incomingAngle - normalAngle);
-    return angle;
-}
-
-void generateDynamicPolygon(ImVec2 position, float rotation, float scale, int sideCount, bool reflective = false) {
-	polygon p;
-    p.reflective = reflective;
-	p.position = position;
-	p.rotation = rotation;
-	p.scale = scale;
-	p.vertices.clear();
-	for (int i = 0; i < sideCount; i++) {
-        vert v = { 2.f * pi * (float)i / sideCount, 1.f };
-		p.vertices.push_back(v);
-	}
-	dynamics.push_back(p);
-}
-
-void linesAddCircle(ImVec2 origin, float radius, int sides, ImColor colour, bool reflective = false) {
-	float angle = pi * 2.f / (float)sides;
-
-	ImVec2* points = new ImVec2[sides + 1];
-    
-    for (int i = 0; i < sides; i++) {
-        points[i] = ImVec2(origin.x + (cos((angle * i)) * radius), origin.y + (sin((angle * i)) * radius));
-        lines.push_back({ points[i - 1], points[i], colour, reflective });
-    } 
-
-    lines.push_back({ points[0], points[sides - 1], colour, reflective });
-
-    delete[] points;
-}
-
-void linesAddRectangle(ImVec2 p1, ImVec2 p2, ImColor colour, bool reflective) {
-	lines.push_back({ p1, ImVec2(p1.x, p2.y), colour, reflective });
-	lines.push_back({ ImVec2(p1.x, p2.y), p2, colour, reflective });
-	lines.push_back({ p2, ImVec2(p2.x, p1.y), colour, reflective });
-	lines.push_back({ ImVec2(p2.x, p1.y), p1, colour, reflective });
-}
-
-void linesAddRectangle(ImVec2 origin, float width, float height, ImColor colour, bool reflective) {
-	linesAddRectangle(origin, { origin.x + width, origin.y + height }, colour, reflective);
-}
-
-bool intersect(line* a, line* b, ImVec2* out) {
-    ImVec2 p = a->p1;
-    ImVec2 q = b->p1;
-    ImVec2 r = ImVec2{ a->p2.x - a->p1.x, a->p2.y - a->p1.y };
-    ImVec2 s = ImVec2{ b->p2.x - b->p1.x, b->p2.y - b->p1.y };
-
-    float rCrossS = crossProduct(r, s);
-    ImVec2 qMinusP = ImVec2{ q.x - p.x, q.y - p.y };
-
-    // Check if the lines are parallel or coincident
-    if (std::abs(crossProduct(qMinusP, r)) <= std::numeric_limits<float>::epsilon() && std::abs(crossProduct(qMinusP, s)) <= std::numeric_limits<float>::epsilon()) {
-        // Check if the lines are collinear and overlapping
-        if (crossProduct(qMinusP, r) <= std::numeric_limits<float>::epsilon()) {
-            float t0 = (qMinusP.x * r.x + qMinusP.y * r.y) / (r.x * r.x + r.y * r.y);
-            float t1 = t0 + (s.x * r.x + s.y * r.y) / (r.x * r.x + r.y * r.y);
-
-            float tMin = min(t0, t1);
-            float tMax = max(t0, t1);
-
-            if (tMax >= 0.f && tMin <= 1.f) {                
-                out->x = p.x + tMin * r.x;
-                out->y = p.y + tMin * r.y;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    float t = crossProduct(qMinusP, s) / rCrossS;
-    float u = crossProduct(qMinusP, r) / rCrossS;
-
-    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-        out->x = p.x + t * r.x;
-        out->y = p.y + t * r.y;
-        return true;
-    }
-
-    return false;
-}
-
-bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int depth = 0, float reflectionAddedDistance = 0.f) {
-	ImVec2 target = ImVec2(origin.x + (cos(angle) * maxDistance), origin.y + (sin(angle) * maxDistance));
-
-	line ray = { origin, target };
-    
-    ImVec2 closestHit = target;
-	float distanceToClosestHit = maxDistance;
-    ImColor closestHitColour = ImColor(0, 0, 0);
-    bool isReflective = false;
-    line* hitLine = 0;
-    
-    std::vector<line> frameMergedLines = {};
-    for (line& l : lines) {
-        frameMergedLines.push_back(l);
-    }
-
-	for (polygon& p : dynamics) {
-		for (line& l : p.generateFrame()) {
-			frameMergedLines.push_back(l);
-		}
-	}
-    
-	for (line& line : frameMergedLines) {
-        ImVec2 hit = { -1, -1 };
-		if (intersect(&ray, &line, &hit)) {
-            
-            if (depth == 0 && line.ignorePrimaryRays) { continue; }
-
-			float distanceToHit = sqrt(pow(origin.x - hit.x, 2) + pow(origin.y - hit.y, 2));
-
-            if (depth == 0) {
-                float mA = playerAngle - angle;
-                distanceToHit *= cos(mA);
-            }
-            
-            if (distanceToHit < distanceToClosestHit && distanceToHit > 0.01f) {
-                distanceToClosestHit = distanceToHit;
-                closestHit = { hit.x, hit.y };
-                closestHitColour = line.colour;
-                isReflective = line.reflective;
-				hitLine = &line;
-            }
-		}
-	}
-
-    hitInf->position = closestHit;
-    hitInf->distance = distanceToClosestHit;
-    hitInf->colour = closestHitColour;
-    hitInf->applyReflectiveModifier = false;
-	hitInf->hitDepth = depth;
-
-	draw->AddLine(origin, closestHit, ImColor(255, 255, 255));
-    
-    hitInf->reflectionDistances.push_back(distanceToClosestHit);
-    
-    if (isReflective && maxDistance > 0.f && hitLine != 0 && depth <= 50) { //allow a maximum of 50 recursions, this is plenty and too many causes lag and stack overflows
-		return castRay(closestHit, calculateReflectionAngle(*hitLine, (angle - pi)), maxDistance - distanceToClosestHit, hitInf, depth + 1, reflectionAddedDistance + distanceToClosestHit);
-    }
-    
-	if (distanceToClosestHit < maxDistance) {
-        hitInf->distance += reflectionAddedDistance;
-        if (depth > 0) {
-            hitInf->applyReflectiveModifier = true;
-        }
-        hitInf->hitFinished = true;
-		return true;
-	}
-
-    if (depth > 0) {
-        hitInf->distance = maxDistance + reflectionAddedDistance;
-        hitInf->applyReflectiveModifier = true;
-    }
-    hitInf->hitFinished = false;
-	return false; 
-}
-
-//psuedo-3d window size
-float _width = 640 / 1.5;
-float _height = 480 / 1.5;
-
-//rendering paramters
-float _lumens = 5.f;
-float _candella = 10000.f;
-float _focalLength = 0.5f;
 
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
@@ -337,6 +60,11 @@ void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam
     }
 }
 
+void drawRectangleWithTexture(ImVec2 min, ImVec2 max, int textureId) {
+	ImVec2 uv0 = ImVec2(0, 0);
+	ImVec2 uv1 = ImVec2(1, 1);
+	ImGui::GetWindowDrawList()->AddImage((void*)textureId, min, max, uv0, uv1);
+}
 
 int main()
 {
@@ -410,15 +138,6 @@ int main()
         }
 
         if (!linesInit) {
-
-    //        for (int i = 0; i < 8; i++) {
-				//float x1 = rand() % (int)winSize.x;
-				//float y1 = rand() % (int)winSize.y;
-    //            float size = (rand() % 75) + 25;
-				//ImColor randColour = ImColor(rand() % 255, rand() % 255, rand() % 255);
-    //            linesAddCircle({ x1, y1 }, size, (rand() % 20) + 3, randColour);
-    //        }      
-    //        
             generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
             
             ImVec2 A = { 30 + (_width), 5};
@@ -448,16 +167,13 @@ int main()
             lines.push_back({ C, D, ImColor(200, 200, 255) });
             lines.push_back({ D, E, ImColor(200, 200, 255) });
             lines.push_back({ E, F, ImColor(200, 200, 255) });
-            lines.push_back({ F, A, ImColor(255, 255, 255), true });
+            lines.push_back({ F, A, ImColor(200, 200, 255) });
 
             lines.push_back({ WAA, WAB, ImColor(200, 200, 255) });
             lines.push_back({ WAAA, WABB, ImColor(200, 200, 255) });
             lines.push_back({ WABB, WAB, ImColor(200, 200, 255) });
 
             generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4);
-
-            linesAddRectangle({ 1000, (winSize.y / 2.f) - 100.f }, 1.f, 200.f, ImColor(255, 255, 255), true);
-            linesAddRectangle({ 1100, (winSize.y / 2.f) - 100.f }, 1.f, 200.f, ImColor(255, 255, 255), true);
             
             linesInit = true;
         }
@@ -548,8 +264,6 @@ int main()
                     height = 0.f;
                 }
                 
-
-
                 if (height < 0.f) { height = 0.f; }
                 if (height > _height) { height = _height; }
 
