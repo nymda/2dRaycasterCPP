@@ -19,6 +19,83 @@ void CleanupDeviceD3D();
 void ResetDevice();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+ImVec2 clampBarSize(ImVec2 barPos){
+    if (barPos.y < rendererMin.y) {
+        //partially out of bounds, above min
+        barPos.y = rendererMin.y;
+    }
+
+    if (barPos.y > rendererMax.y) {
+        //partially out of bounds, below max
+        barPos.y = rendererMax.y;
+    }
+
+    return barPos;
+}
+
+void drawLineSegmented(ImVec2 min, ImVec2 max, ImColor segmentColours[], int segmentColourCount, float brightness) {
+    float lineSizeY = max.y - min.y;
+    float segmentSizeY = lineSizeY / segmentColourCount;
+    for (int i = 0; i < segmentColourCount; i++) {
+        ImVec2 segmentMin = { min.x, min.y + (segmentSizeY * i) };
+        ImVec2 segmentMax = { max.x, min.y + (segmentSizeY * (i + 1)) };
+
+
+        if (segmentMax.y < rendererMin.y) {
+            //totally out of bounds, above min
+            continue;
+        }
+
+        if (segmentMin.y > rendererMax.y) {
+            //totally out of bounds, below max
+            continue;
+        }
+      
+        if (segmentMin.y < rendererMin.y){
+      	    //partially out of bounds, above min
+            segmentMin.y = rendererMin.y;
+        }
+      
+        if (segmentMax.y > rendererMax.y) {
+      	    //partially out of bounds, below max
+            segmentMax.y = rendererMax.y;
+        }
+        
+        float newR = segmentColours[i].Value.x * brightness;
+        float newG = segmentColours[i].Value.y * brightness;
+        float newB = segmentColours[i].Value.z * brightness;
+
+        draw->AddRectFilled(segmentMin, segmentMax, ImColor(newR, newG, newB));
+    }
+}
+
+ImColor testRainbow[25] = { ImColor(255, 0, 0),
+    ImColor(255, 64, 0),
+    ImColor(255, 128, 0),
+    ImColor(255, 191, 0),
+    ImColor(255, 255, 0),
+    ImColor(191, 255, 0),
+    ImColor(128, 255, 0),
+    ImColor(64, 255, 0),
+    ImColor(0, 255, 0),
+    ImColor(0, 255, 64),
+    ImColor(0, 255, 128),
+    ImColor(0, 255, 191),
+    ImColor(0, 255, 255),
+    ImColor(0, 191, 255),
+    ImColor(0, 128, 255),
+    ImColor(0, 64, 255),
+    ImColor(0, 0, 255),
+    ImColor(64, 0, 255),
+    ImColor(128, 0, 255),
+    ImColor(191, 0, 255),
+    ImColor(255, 0, 255),
+    ImColor(255, 0, 191),
+    ImColor(255, 0, 128),
+    ImColor(255, 0, 64),
+    ImColor(255, 0, 0) 
+};
+
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
     if (GetKeyState(VK_LEFT) < 0) {
@@ -218,9 +295,7 @@ int main()
         }     
 
         //draw 3d environment
-        
-        ImVec2 rendererMin = { 15, 15 };
-        ImVec2 rendererMax = { 15 + _width, 15 + _height };
+
 		ImVec2 rendererCenterLeft = { rendererMin.x + ((rendererMax.x - rendererMin.x) / 2), rendererMin.y + ((rendererMax.y - rendererMin.y) / 2) };
 		float rendererBarWidth = _width / (float)cameraRayCount;
 		draw->AddRectFilled(rendererMin, rendererMax, ImColor(0, 0, 0));
@@ -263,9 +338,9 @@ int main()
                 if (d == 0 && !distances[i].hitFinished) {
                     height = 0.f;
                 }
-                
-                if (height < 0.f) { height = 0.f; }
-                if (height > _height) { height = _height; }
+
+                //if (height < 0.f) { height = 0.f; }
+                //if (height > _height) { height = _height; }
 
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
@@ -291,7 +366,13 @@ int main()
                 float newB = colour.Value.z * brightness;
                 float newA = d == 0 ? 1 : 0.5;
                 
-                draw->AddRectFilled(barMin, barMax, ImColor(newR, newG + gBrightnessModifier, newB, newA));
+                if(d == 0){
+                    drawLineSegmented(barMin, barMax, testRainbow, 25, brightness);
+                }
+                else {
+                    draw->AddRectFilled(clampBarSize(barMin), clampBarSize(barMax), ImColor(newR, newG + gBrightnessModifier, newB, newA));
+                }
+
             }
 		}
 

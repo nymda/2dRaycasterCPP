@@ -145,7 +145,7 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
     
     if (hitLine) {
 		hitInf->hitLine = hitLine;
-		hitInf->distanceFromLineOrigin = distance(closestHit, hitLine->p1);
+		hitInf->distanceFromLineOrigin = distance(closestHit, hitLine->p1) / distance(hitLine->p1, hitLine->p2);
     }
     
     if (isReflective && maxDistance > 0.f && hitLine != 0 && depth <= 50) { //allow a maximum of 50 recursions, this is plenty and too many causes lag and stack overflows

@@ -18,3 +18,5 @@ float _height = 480 / 1.5;
 float _lumens = 5.f;
 float _candella = 10000.f;
 float _focalLength = 0.5f;
+ImVec2 rendererMin = { 15, 15 };
+ImVec2 rendererMax = { 15 + _width, 15 + _height };

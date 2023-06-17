@@ -17,3 +17,5 @@ extern float _height;
 extern float _lumens;
 extern float _candella;
 extern float _focalLength;
+extern ImVec2 rendererMin;
+extern ImVec2 rendererMax;
