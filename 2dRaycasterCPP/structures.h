@@ -6,11 +6,18 @@
 
 #define pi 3.14159265358979323846f
 
-struct simpleColour {
-    char R;
-    char G;
-    char B;
-    char A;
+struct RGB {
+    unsigned char R;
+    unsigned char G;
+    unsigned char B;
+};
+
+struct texture {
+    int textureID;
+    RGB* data;
+    int dataSize;
+    int X;
+    int Y;
 };
 
 struct line {
@@ -19,18 +26,21 @@ struct line {
     ImColor colour = ImColor(255, 255, 255);
     bool reflective = false;
     bool ignorePrimaryRays = false;
+    int textureID = 0;
 };
 
 struct hitInfo {
-    line* hitLine;
+    line* hitLine = 0;
     ImVec2 position = { -1, -1 };
     float distance = -1.f;
     std::vector<float> reflectionDistances = { };
     float distanceFromLineOrigin = -1.f;
+    float trueDistanceFromLineOrigin = -1.f;
     ImColor colour = ImColor(0, 0, 0);
     bool applyReflectiveModifier = false;
     int hitDepth = 0;
     bool hitFinished = false;
+    int hitLineTextureID = 0;
 };
 
 struct vert {

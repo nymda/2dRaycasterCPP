@@ -98,6 +98,7 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
     ImColor closestHitColour = ImColor(0, 0, 0);
     bool isReflective = false;
     line* hitLine = 0;
+    int texID = 0;
 
     std::vector<line> frameMergedLines = {};
     for (line& l : lines) {
@@ -128,6 +129,7 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
                 closestHit = { hit.x, hit.y };
                 closestHitColour = line.colour;
                 isReflective = line.reflective;
+                texID = line.textureID;
                 hitLine = &line;
             }
         }
@@ -146,6 +148,8 @@ bool castRay(ImVec2 origin, float angle, float maxDistance, hitInfo* hitInf, int
     if (hitLine) {
 		hitInf->hitLine = hitLine;
 		hitInf->distanceFromLineOrigin = distance(closestHit, hitLine->p1) / distance(hitLine->p1, hitLine->p2);
+        hitInf->trueDistanceFromLineOrigin = distance(closestHit, hitLine->p1);
+        hitInf->hitLineTextureID = texID;
     }
     
     if (isReflective && maxDistance > 0.f && hitLine != 0 && depth <= 50) { //allow a maximum of 50 recursions, this is plenty and too many causes lag and stack overflows

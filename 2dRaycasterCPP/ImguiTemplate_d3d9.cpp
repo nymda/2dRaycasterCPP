@@ -4,6 +4,10 @@
 #include <dinput.h>
 #include <tchar.h>
 #include <vector>
+#include <chrono>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include "globals.h"
 #include "structures.h"
@@ -33,7 +37,7 @@ ImVec2 clampBarSize(ImVec2 barPos){
     return barPos;
 }
 
-void drawLineSegmented(ImVec2 min, ImVec2 max, ImColor segmentColours[], int segmentColourCount, float brightness) {
+void drawLineSegmented(ImVec2 min, ImVec2 max, RGB segmentColours[], int segmentColourCount, float brightness) {
     float lineSizeY = max.y - min.y;
     float segmentSizeY = lineSizeY / segmentColourCount;
     for (int i = 0; i < segmentColourCount; i++) {
@@ -61,9 +65,9 @@ void drawLineSegmented(ImVec2 min, ImVec2 max, ImColor segmentColours[], int seg
             segmentMax.y = rendererMax.y;
         }
         
-        float newR = segmentColours[i].Value.x * brightness;
-        float newG = segmentColours[i].Value.y * brightness;
-        float newB = segmentColours[i].Value.z * brightness;
+        float newR = (float)((float)segmentColours[i].R / 256.f) * brightness;
+        float newG = (float)((float)segmentColours[i].G / 256.f) * brightness;
+        float newB = (float)((float)segmentColours[i].B / 256.f) * brightness;
 
         draw->AddRectFilled(segmentMin, segmentMax, ImColor(newR, newG, newB));
     }
@@ -143,6 +147,20 @@ void drawRectangleWithTexture(ImVec2 min, ImVec2 max, int textureId) {
 	ImGui::GetWindowDrawList()->AddImage((void*)textureId, min, max, uv0, uv1);
 }
 
+std::vector<texture*> textures = {};
+
+int testTextureX = 0;
+int testTextureY = 0;
+int testTextureChannels = 0;
+RGB* testTexture = 0;
+
+void loadTextureFromDisc(const char* path) {
+    texture* nt = new texture;
+    nt->data = (RGB*)stbi_load(path, &nt->X, &nt->Y, &testTextureChannels, 3);
+    nt->dataSize = sizeof(RGB) * (nt->X * nt->Y);
+    textures.push_back(nt);
+}
+
 int main()
 {
     srand(time(NULL));
@@ -181,10 +199,16 @@ int main()
     
     SetTimer(NULL, 1, 1000 / 60, timerCallback);
 
+    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\default.png");
+    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\bricktexture.png");
+
     MSG msg;
     ZeroMemory(&msg, sizeof(msg));
     while (msg.message != WM_QUIT)
-    {     
+    {   
+
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
         if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
         {
             ::TranslateMessage(&msg);
@@ -239,16 +263,15 @@ int main()
             ImVec2 WBAA = { 30 + (_width) - 25, winSize.y - 6 };
             ImVec2 WBBB = { 30 + (_width) - 25, winSize.y - 100 - 6 };
 
-            lines.push_back({ A, B, ImColor(200, 200, 255) });
-            lines.push_back({ WAAA, C, ImColor(255, 255, 255), true });
-            lines.push_back({ C, D, ImColor(200, 200, 255) });
-            lines.push_back({ D, E, ImColor(200, 200, 255) });
-            lines.push_back({ E, F, ImColor(200, 200, 255) });
-            lines.push_back({ F, A, ImColor(200, 200, 255) });
+            lines.push_back({ A, WAB, ImColor(200, 200, 255), false, false, 1 });
+            lines.push_back({ WAAA, C, ImColor(255, 255, 255), true, false, 0 });
+            lines.push_back({ C, D, ImColor(200, 200, 255), false, false, 1 });
+            lines.push_back({ D, E, ImColor(200, 200, 255), false, false, 1 });
+            lines.push_back({ E, F, ImColor(200, 200, 255), false, false, 1 });
+            lines.push_back({ F, A, ImColor(200, 200, 255), false, false, 1 });
 
-            lines.push_back({ WAA, WAB, ImColor(200, 200, 255) });
-            lines.push_back({ WAAA, WABB, ImColor(200, 200, 255) });
-            lines.push_back({ WABB, WAB, ImColor(200, 200, 255) });
+            lines.push_back({ WAAA, WABB, ImColor(200, 200, 255), false, false, 1 });
+            lines.push_back({ WABB, WAB, ImColor(200, 200, 255), false, false, 1 });
 
             generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4);
             
@@ -365,9 +388,16 @@ int main()
                 float newG = colour.Value.y * brightness;
                 float newB = colour.Value.z * brightness;
                 float newA = d == 0 ? 1 : 0.5;
-                
+
+                texture* t = textures[distances[i].hitLineTextureID];
+
+                float unused = 0.f;
+                float trueDistance = std::modf(distances[i].trueDistanceFromLineOrigin / (float)(t->X * 4.f), &unused);
+
+                int texturePixelOffset = trueDistance * t->X;
+
                 if(d == 0){
-                    drawLineSegmented(barMin, barMax, testRainbow, 25, brightness);
+                    drawLineSegmented(barMin, barMax, (RGB*)(t->data + (texturePixelOffset * t->X)), t->X, brightness);
                 }
                 else {
                     draw->AddRectFilled(clampBarSize(barMin), clampBarSize(barMax), ImColor(newR, newG + gBrightnessModifier, newB, newA));
@@ -378,11 +408,11 @@ int main()
 
         if (overExposure && _lumens > 0.5f) {
             _lumens -= 0.025f;
-            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+            //printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
         }
         else if (frameBrightnessAverage < 0.25f && _lumens < 5.f) {
             _lumens += 0.025f;
-            printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
+            //printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
         }
         
         draw->AddRect(rendererMin, rendererMax, 0xffffffff);
@@ -407,6 +437,13 @@ int main()
         if (result == D3DERR_DEVICELOST && g_pd3dDevice->TestCooperativeLevel() == D3DERR_DEVICENOTRESET) {
             ResetDevice();
         }
+
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+        int timeUS = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+        float timeMS = (float)timeUS / 1000.f;
+        printf_s("Frame time: %i US, %.2f FPS\n", timeUS, (1000.f / (float)timeMS));
+
     }
 
     ImGui_ImplDX9_Shutdown();
@@ -433,7 +470,7 @@ bool CreateDeviceD3D(HWND hWnd)
     g_d3dpp.BackBufferFormat = D3DFMT_UNKNOWN;
     g_d3dpp.EnableAutoDepthStencil = TRUE;
     g_d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
-    g_d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+    g_d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
     if (g_pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_HARDWARE_VERTEXPROCESSING, &g_d3dpp, &g_pd3dDevice) < 0) {
         return false;
     }
@@ -471,12 +508,12 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if (wParam == VK_OEM_PLUS)
         {
             _focalLength += 0.01f;
-            printf_s("FC: %0.2f\n", _focalLength);
+            //printf_s("FC: %0.2f\n", _focalLength);
         }
         if (wParam == VK_OEM_MINUS)
         {
             _focalLength -= 0.01f;
-            printf_s("FC: %0.2f\n", _focalLength);
+            //printf_s("FC: %0.2f\n", _focalLength);
         }
 
 		return 0;
