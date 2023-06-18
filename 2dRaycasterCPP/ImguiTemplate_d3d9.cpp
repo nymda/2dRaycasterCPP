@@ -186,6 +186,7 @@ void drawRectangleWithTexture(ImVec2 min, ImVec2 max, int textureId) {
 	ImGui::GetWindowDrawList()->AddImage((void*)textureId, min, max, uv0, uv1);
 }
 
+texture* defTexture = 0;
 texture* textures[128] = {};
 
 int testTextureX = 0;
@@ -203,6 +204,10 @@ texture* loadTextureFromDisc(const char* path, textureMode mode) {
     nt->data = (RGB*)stbi_load(tmp, &nt->X, &nt->Y, &testTextureChannels, 3);
     nt->dataSize = sizeof(RGB) * (nt->X * nt->Y);
     nt->mode = mode;
+
+    if (!nt->data) {
+        return defTexture;
+    }
     return nt;
 }
 
@@ -265,7 +270,7 @@ int main()
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     draw = ImGui::GetForegroundDrawList();
     int cameraRayCount = 128;
-    hitInfo* distances = new hitInfo[cameraRayCount] {};
+    hitInfo* raycasts = new hitInfo[cameraRayCount] {};
     float rayMaxDistance = 5000.f;
     
     SetTimer(NULL, 1, 1000 / 60, timerCallback);
@@ -285,10 +290,10 @@ int main()
     size_t cSize = 0;
     wcstombs_s(&cSize, (char*)execPathShort, 512, execPath, 512);
 
-    texture* defTxt = createDefaultTexture();
+    defTexture = createDefaultTexture();
 
     for (int i = 0; i < 128; i++) {
-        textures[i] = defTxt;
+        textures[i] = defTexture;
     }
 
     textures[1] = loadTextureFromDisc("bricktexture.png", textureMode::tile);
@@ -406,7 +411,7 @@ int main()
             hitInfo hinf = {};
             
             if (castRay(player, offsetAngle, rayMaxDistance, &hinf)) { }
-			distances[i] = hinf;
+			raycasts[i] = hinf;
             //draw->AddLine(player, hinf.position, 0xffffffff);
         }     
 
@@ -438,20 +443,20 @@ int main()
         frameBrightnessAverage = 0.f;
         overExposure = false;
         for (int i = 0; i < cameraRayCount; i++){
-			float distance = distances[i].distance;
+			float distance = raycasts[i].distance;
 
             float runningStackedDistance = 0.f;
-            for (int d = distances[i].hitDepth; d >= 0; d--) {
+            for (int d = raycasts[i].hitDepth; d >= 0; d--) {
                
                 if (d > 0) {
-                    runningStackedDistance += distances[i].reflectionDistances[distances[i].hitDepth - d];
+                    runningStackedDistance += raycasts[i].reflectionDistances[raycasts[i].hitDepth - d];
                 }
                 
-                ImColor colour = d == 0 ? distances[i].colour : ImColor(100, 110 + ((distances[i].hitDepth - d) * 10), 100);
+                ImColor colour = d == 0 ? raycasts[i].colour : ImColor(100, 110 + ((raycasts[i].hitDepth - d) * 10), 100);
 
                 float apparentSize = d == 0 ? _height * _focalLength / distance : _height * _focalLength / runningStackedDistance;
                 float height = apparentSize * _height;
-                if (d == 0 && !distances[i].hitFinished) {
+                if (d == 0 && !raycasts[i].hitFinished) {
                     height = 0.f;
                 }
 
@@ -472,25 +477,24 @@ int main()
                 brightness = d == 0 ? fmin(brightness, 1.5f) : fmin(brightness, 0.25f);
                 brightness = fmax(brightness, 0.1f);
 
-                float gBrightnessModifier = (float)((float)((distances[i].hitDepth - d) * 5.f) / 255.f);
+                float gBrightnessModifier = (float)((float)((raycasts[i].hitDepth - d) * 5.f) / 255.f);
 
                 float newR = colour.Value.x * brightness;
                 float newG = colour.Value.y * brightness;
                 float newB = colour.Value.z * brightness;
                 float newA = d == 0 ? 1 : 0.5;
 
-                texture* t = textures[distances[i].hitLineTextureID];
+                texture* t = textures[raycasts[i].hitLineTextureID];
 
                 float unused = 0.f;
                 float trueDistance = 0.f;
 
                 if (t->mode == textureMode::tile) {
-                    trueDistance = std::modf(distances[i].trueDistanceFromLineOrigin / (float)(t->X * 4.f), &unused);
+                    trueDistance = std::modf(raycasts[i].trueDistanceFromLineOrigin / (float)(t->X * 4.f), &unused);
                 }
                 else {
-                    trueDistance = distances[i].distanceFromLineOrigin;
+                    trueDistance = raycasts[i].distanceFromLineOrigin;
                 }
-
 
                 int texturePixelOffset = trueDistance * t->X;
 

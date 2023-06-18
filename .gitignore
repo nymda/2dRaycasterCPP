@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /textures/fenc.png
 /2dRaycasterCPP/defaultTexture.bin
+/textures
