@@ -13,6 +13,7 @@
 #include "structures.h"
 #include "logics.h"
 #include "drawing.h"
+#include <fstream>
 
 static LPDIRECT3D9              g_pD3D = NULL;
 static LPDIRECT3DDEVICE9        g_pd3dDevice = NULL;
@@ -107,6 +108,12 @@ bool overExposure = false;
 ImVec2 playerVelocity = { 0, 0 };
 float maxVelocity = 7.f;
 
+int timeUS = 0;
+float timeMS = 0.f;
+wchar_t titleBuffer[128] = {};
+
+HWND hwnd = 0;
+
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
     if (GetKeyState(VK_LEFT) < 0) {
@@ -167,6 +174,10 @@ void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam
     else if (frameBrightnessAverage < 0.25f && _lumens < 5.f) {
         _lumens += 0.075f;
     }
+
+    //printf_s("Frame time: %i US, %.2f FPS\n", timeUS, (1000.f / (float)timeMS));
+    swprintf_s(titleBuffer, L"2D Raycaster | FPS: %.2f", (1000.f / (float)timeMS));
+    SetWindowTextW(hwnd, titleBuffer);
 }
 
 void drawRectangleWithTexture(ImVec2 min, ImVec2 max, int textureId) {
@@ -175,19 +186,50 @@ void drawRectangleWithTexture(ImVec2 min, ImVec2 max, int textureId) {
 	ImGui::GetWindowDrawList()->AddImage((void*)textureId, min, max, uv0, uv1);
 }
 
-std::vector<texture*> textures = {};
+texture* textures[128] = {};
 
 int testTextureX = 0;
 int testTextureY = 0;
 int testTextureChannels = 0;
 RGB* testTexture = 0;
+char execPathShort[512] = {};
 
-void loadTextureFromDisc(const char* path, textureMode mode) {
+texture* loadTextureFromDisc(const char* path, textureMode mode) {
     texture* nt = new texture;
-    nt->data = (RGB*)stbi_load(path, &nt->X, &nt->Y, &testTextureChannels, 3);
+
+    char tmp[512] = {};
+    sprintf_s(tmp, "%s%s", execPathShort, path);
+
+    nt->data = (RGB*)stbi_load(tmp, &nt->X, &nt->Y, &testTextureChannels, 3);
     nt->dataSize = sizeof(RGB) * (nt->X * nt->Y);
     nt->mode = mode;
-    textures.push_back(nt);
+    return nt;
+}
+
+texture* createDefaultTexture() {
+    texture* nt = new texture;
+
+    int defaultTextureRes = 8;
+
+    nt->data = (RGB*)malloc(sizeof(RGB) * (defaultTextureRes * defaultTextureRes));
+    if (!nt->data) { return 0; }
+
+    RGB p = { 255, 0, 255 };
+    RGB b = { 0, 0, 0 };
+
+    bool swap = true;
+    for (int i = 0; i < (defaultTextureRes * defaultTextureRes); i++) {
+        swap = !swap;
+        if (i % 32 == 0) { swap = !swap; }
+        nt->data[i] = swap ? p : b;
+    }
+
+    nt->X = defaultTextureRes;
+    nt->Y = defaultTextureRes;
+    nt->dataSize = sizeof(RGB) * (defaultTextureRes * defaultTextureRes);
+    nt->mode = textureMode::tile;
+
+    return nt;
 }
 
 int main()
@@ -196,7 +238,7 @@ int main()
     
     WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("2D Raycaster"), NULL };
     ::RegisterClassEx(&wc);
-    HWND hwnd = ::CreateWindow(wc.lpszClassName, _T("2D Raycaster"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 720, NULL, NULL, wc.hInstance, NULL);
+    hwnd = ::CreateWindow(wc.lpszClassName, _T("2D Raycaster"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 720, NULL, NULL, wc.hInstance, NULL);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
@@ -228,10 +270,30 @@ int main()
     
     SetTimer(NULL, 1, 1000 / 60, timerCallback);
 
-    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\default.png", textureMode::tile);
-    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\bricktexture.png", textureMode::tile);
-    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\concrete.png", textureMode::tile);
-    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\gobid.png", textureMode::stretch);
+    wchar_t execPath[512] = {};
+    GetModuleFileName(NULL, (LPWSTR)&execPath, 512);
+
+    int lastSlashIndex = 0;
+    for (int i = 0; i < 512; i++) {
+        if (execPath[i] == L'\\') {
+            lastSlashIndex = i + 1;
+        }
+    }
+
+    FillMemory(execPath + lastSlashIndex, 512 - lastSlashIndex, 0x00);
+    
+    size_t cSize = 0;
+    wcstombs_s(&cSize, (char*)execPathShort, 512, execPath, 512);
+
+    texture* defTxt = createDefaultTexture();
+
+    for (int i = 0; i < 128; i++) {
+        textures[i] = defTxt;
+    }
+
+    textures[1] = loadTextureFromDisc("bricktexture.png", textureMode::tile);
+    textures[2] = loadTextureFromDisc("concrete.png", textureMode::tile);
+    textures[3] = loadTextureFromDisc("gobid.png", textureMode::stretch);
 
     MSG msg;
     ZeroMemory(&msg, sizeof(msg));
@@ -305,7 +367,7 @@ int main()
             lines.push_back({ WABB, WAB, ImColor(200, 200, 255), false, false, 1 });
 
             generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4, false, 2);
-            
+
             linesInit = true;
         }
         
@@ -467,10 +529,8 @@ int main()
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
-        int timeUS = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
-        float timeMS = (float)timeUS / 1000.f;
-        //printf_s("Frame time: %i US, %.2f FPS\n", timeUS, (1000.f / (float)timeMS));
-
+        timeUS = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+        timeMS = (float)timeUS / 1000.f;
     }
 
     ImGui_ImplDX9_Shutdown();
