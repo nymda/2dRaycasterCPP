@@ -265,12 +265,12 @@ int main()
 
 		ImVec2 winSize = ImGui::GetWindowSize();
         if (!playerInit) {
-			player = { winSize.x / 2, winSize.y / 2 };
+			player = { winSize.x / 2.f, winSize.y / 1.25f};
             playerInit = true;
         }
 
         if (!linesInit) {
-            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3, false, 3);
+            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 4, false, 3);
             
             ImVec2 A = { 30 + (_width), 5};
             ImVec2 B = { 30 + (_width), 30 + (_height)};
