@@ -1,12 +1,13 @@
 #include "drawing.h"
 #include "globals.h"
 
-void generateDynamicPolygon(ImVec2 position, float rotation, float scale, int sideCount, bool reflective) {
+void generateDynamicPolygon(ImVec2 position, float rotation, float scale, int sideCount, bool reflective, int textureID) {
 	polygon p;
 	p.reflective = reflective;
 	p.position = position;
 	p.rotation = rotation;
 	p.scale = scale;
+	p.textureID = textureID;
 	p.vertices.clear();
 	for (int i = 0; i < sideCount; i++) {
 		vert v = { 2.f * pi * (float)i / sideCount, 1.f };

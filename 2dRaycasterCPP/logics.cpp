@@ -2,6 +2,10 @@
 #include "globals.h"
 #include <math.h>
 
+float vectorLength(ImVec2 vector) {
+    return sqrt(vector.x * vector.x + vector.y * vector.y);
+}
+
 ImVec2 normalise(ImVec2 vector) {
     float l = sqrt(vector.x * vector.x + vector.y * vector.y);
     return { vector.x / l, vector.y / l };

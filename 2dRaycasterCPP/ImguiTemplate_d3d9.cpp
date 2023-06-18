@@ -100,17 +100,24 @@ ImColor testRainbow[25] = { ImColor(255, 0, 0),
     ImColor(255, 0, 0) 
 };
 
+float frameTotalBrightness = 0.f;
+float frameBrightnessAverage = 0.f;
+bool overExposure = false;
+
+ImVec2 playerVelocity = { 0, 0 };
+float maxVelocity = 7.f;
+
 //fires 60 times per second
 void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam3, DWORD unnamedParam4) {
     if (GetKeyState(VK_LEFT) < 0) {
-        playerAngle -= (pi / 2.f) / 50;
+        playerAngle -= (pi / 2.f) / 30.f;
         if (playerAngle < 0.f) {
             playerAngle += (pi * 2.f);
         }
     }
 
     if (GetKeyState(VK_RIGHT) < 0) {
-        playerAngle += (pi / 2.f) / 50;
+        playerAngle += (pi / 2.f) / 30.f;
         if (playerAngle > (pi * 2.f)) {
             playerAngle -= (pi * 2.f);
         }
@@ -118,26 +125,47 @@ void timerCallback(HWND unnamedParam1, UINT unnamedParam2, UINT_PTR unnamedParam
 
     if (GetKeyState(VK_UP) < 0) {
         ImVec2 forward = angleToVector(playerAngle);
-        player.x += forward.x * 3.f;
-        player.y += forward.y * 3.f;
+        playerVelocity.x += forward.x * 5.f;
+        playerVelocity.y += forward.y * 5.f;
     }
 
     if (GetKeyState(VK_DOWN) < 0) {
         ImVec2 forward = angleToVector(playerAngle);
-        player.x -= forward.x * 3.f;
-        player.y -= forward.y * 3.f;
+        playerVelocity.x -= forward.x * 5.f;
+        playerVelocity.y -= forward.y * 5.f;
     }
 
     if (GetKeyState(0x51) < 0) {
         ImVec2 left = angleToVector(playerAngle - (pi / 2.f));
-        player.x += left.x * 3.f;
-        player.y += left.y * 3.f;
+        playerVelocity.x += left.x * 5.f;
+        playerVelocity.y += left.y * 5.f;
     }
 
     if (GetKeyState(0x45) < 0) {
         ImVec2 right = angleToVector(playerAngle + (pi / 2.f));
-        player.x += right.x * 3.f;
-        player.y += right.y * 3.f;
+        playerVelocity.x += right.x * 5.f;
+        playerVelocity.y += right.y * 5.f;
+    }
+
+    //this mats is broken, but oh well
+    
+	if (vectorLength(playerVelocity) > maxVelocity) {
+		playerVelocity = normalise(playerVelocity);
+		playerVelocity.x *= maxVelocity;
+		playerVelocity.y *= maxVelocity;
+	}
+    
+    player.x += playerVelocity.x;
+    player.y += playerVelocity.y;
+
+	playerVelocity.x -= playerVelocity.x / 5.f;
+	playerVelocity.y -= playerVelocity.y / 5.f;
+    
+    if (overExposure && _lumens > 0.5f) {
+        _lumens -= 0.075f;
+    }
+    else if (frameBrightnessAverage < 0.25f && _lumens < 5.f) {
+        _lumens += 0.075f;
     }
 }
 
@@ -154,10 +182,11 @@ int testTextureY = 0;
 int testTextureChannels = 0;
 RGB* testTexture = 0;
 
-void loadTextureFromDisc(const char* path) {
+void loadTextureFromDisc(const char* path, textureMode mode) {
     texture* nt = new texture;
     nt->data = (RGB*)stbi_load(path, &nt->X, &nt->Y, &testTextureChannels, 3);
     nt->dataSize = sizeof(RGB) * (nt->X * nt->Y);
+    nt->mode = mode;
     textures.push_back(nt);
 }
 
@@ -199,8 +228,10 @@ int main()
     
     SetTimer(NULL, 1, 1000 / 60, timerCallback);
 
-    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\default.png");
-    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\bricktexture.png");
+    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\default.png", textureMode::tile);
+    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\bricktexture.png", textureMode::tile);
+    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\concrete.png", textureMode::tile);
+    loadTextureFromDisc("C:\\Users\\puffl\\source\\repos\\2dRaycasterCPP\\textures\\gobid.png", textureMode::stretch);
 
     MSG msg;
     ZeroMemory(&msg, sizeof(msg));
@@ -239,7 +270,7 @@ int main()
         }
 
         if (!linesInit) {
-            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3);
+            generateDynamicPolygon({ winSize.x / 2.f, winSize.y / 4.f }, 0.f, 75.f, 3, false, 3);
             
             ImVec2 A = { 30 + (_width), 5};
             ImVec2 B = { 30 + (_width), 30 + (_height)};
@@ -273,7 +304,7 @@ int main()
             lines.push_back({ WAAA, WABB, ImColor(200, 200, 255), false, false, 1 });
             lines.push_back({ WABB, WAB, ImColor(200, 200, 255), false, false, 1 });
 
-            generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4);
+            generateDynamicPolygon({ (D.x + WAAA.x) / 2.f, (WAAA.y + D.y) / 2.f }, 0.f, 25.f, 4, false, 2);
             
             linesInit = true;
         }
@@ -341,9 +372,9 @@ int main()
 
         //draw the actual frame
 
-        float frameTotalBrightness = 0.f;
-        float frameBrightnessAverage = 0.f;
-        bool overExposure = false;
+        frameTotalBrightness = 0.f;
+        frameBrightnessAverage = 0.f;
+        overExposure = false;
         for (int i = 0; i < cameraRayCount; i++){
 			float distance = distances[i].distance;
 
@@ -361,9 +392,6 @@ int main()
                 if (d == 0 && !distances[i].hitFinished) {
                     height = 0.f;
                 }
-
-                //if (height < 0.f) { height = 0.f; }
-                //if (height > _height) { height = _height; }
 
                 ImVec2 barMin = { rendererMin.x + (rendererBarWidth * (float)i), rendererCenterLeft.y - (height / 2.f) };
                 ImVec2 barMax = { rendererMin.x + (rendererBarWidth * (float)i) + rendererBarWidth, rendererCenterLeft.y + (height / 2.f) };
@@ -392,7 +420,15 @@ int main()
                 texture* t = textures[distances[i].hitLineTextureID];
 
                 float unused = 0.f;
-                float trueDistance = std::modf(distances[i].trueDistanceFromLineOrigin / (float)(t->X * 4.f), &unused);
+                float trueDistance = 0.f;
+
+                if (t->mode == textureMode::tile) {
+                    trueDistance = std::modf(distances[i].trueDistanceFromLineOrigin / (float)(t->X * 4.f), &unused);
+                }
+                else {
+                    trueDistance = distances[i].distanceFromLineOrigin;
+                }
+
 
                 int texturePixelOffset = trueDistance * t->X;
 
@@ -405,15 +441,6 @@ int main()
 
             }
 		}
-
-        if (overExposure && _lumens > 0.5f) {
-            _lumens -= 0.025f;
-            //printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
-        }
-        else if (frameBrightnessAverage < 0.25f && _lumens < 5.f) {
-            _lumens += 0.025f;
-            //printf_s("Lumens: %0.2f | Candella: %0.2f\n", _lumens, _candella);
-        }
         
         draw->AddRect(rendererMin, rendererMax, 0xffffffff);
         
@@ -442,7 +469,7 @@ int main()
 
         int timeUS = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
         float timeMS = (float)timeUS / 1000.f;
-        printf_s("Frame time: %i US, %.2f FPS\n", timeUS, (1000.f / (float)timeMS));
+        //printf_s("Frame time: %i US, %.2f FPS\n", timeUS, (1000.f / (float)timeMS));
 
     }
 

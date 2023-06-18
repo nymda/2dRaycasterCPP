@@ -1,6 +1,7 @@
 #pragma once
 #include "structures.h"
 
+float vectorLength(ImVec2 vector);
 ImVec2 normalise(ImVec2 vector);
 ImVec2 angleToVector(float angle);
 ImVec2 vectorToPoint(ImVec2 source, ImVec2 target);

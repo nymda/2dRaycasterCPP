@@ -6,6 +6,11 @@
 
 #define pi 3.14159265358979323846f
 
+enum textureMode {
+    stretch = 0,
+    tile = 1
+};
+
 struct RGB {
     unsigned char R;
     unsigned char G;
@@ -18,6 +23,8 @@ struct texture {
     int dataSize;
     int X;
     int Y;
+	textureMode mode = textureMode::tile;
+    
 };
 
 struct line {
@@ -53,6 +60,7 @@ struct polygon {
     ImVec2 position;
     float rotation;
     float scale;
+    int textureID = 0;
     std::vector<vert> vertices;
     std::vector<line> generateFrame() {
         std::vector<line> lines;
@@ -70,6 +78,7 @@ struct polygon {
             l.p2.y += position.y;
             l.colour = ImColor(100, 100, 255);
             l.reflective = reflective;
+            l.textureID = textureID;
             lines.push_back(l);
         }
         return lines;
